@@ -23,8 +23,9 @@ OpenAI Whisper transformers model을 사용하여 실시간 음성인식하는 �
 ```
 $ conda install ffmpeg
 ```
-참고 : How to use Whisper in Python
-https://nicobytes.com/blog/en/how-to-use-whisper/
+(참고 : How to use Whisper in Python
+https://nicobytes.com/blog/en/how-to-use-whisper/)
+
 3. whisper-rt requirements
 ```
 $ conda install pyaudio
@@ -34,8 +35,8 @@ $ conda install SpeechRecognition
 ```
 $ pip install -U openai-whisper
 ```
-참고 : pip 명령어의 경우 conda, conda-forge로 안되는 패키지를 설치할 때만 사용한다.
-https://biomadscientist.tistory.com/114
+(참고 : pip 명령어의 경우 conda, conda-forge로 안되는 패키지를 설치할 때만 사용한다.
+https://biomadscientist.tistory.com/114)
 
 <br>
 
