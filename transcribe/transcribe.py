@@ -1,20 +1,22 @@
 import argparse
 import os
-import numpy as np
-import speech_recognition as sr
-import whisper
-import torch
 import time
-
 from datetime import datetime, timedelta
 from queue import Queue
 from sys import platform
 
+import numpy as np
+import speech_recognition as sr
+import torch
+import whisper
 
 # references
 # https://github.com/davabase/whisper_real_time
 
 TAB_CHAR = '\t'
+SAMPLE_RATE = 16_000
+LOG_DIR_NAME = 'output'
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -47,8 +49,6 @@ def main():
     # dynamic energy compensation이 SpeechRecognizer가 녹음을 멈추지 않는 지점까지 energy threshold 값을 극적으로 낮춘다.
     recorder.dynamic_energy_threshold = False
     # parameters
-    SAMPLE_RATE = 16_000
-    LOG_DIR_NAME = 'output'
 
     # Important for linux users.
     # Prevents permanent application hang and crash by using the wrong Microphone
@@ -89,7 +89,7 @@ def main():
     with source:
         recorder.adjust_for_ambient_noise(source)
 
-    def record_callback(_, audio:sr.AudioData) -> None:
+    def record_callback(_, audio: sr.AudioData) -> None:
         """
         Threaded callback function to receive audio data when recordings finish.
         audio: An AudioData containing the recorded bytes.
@@ -126,11 +126,11 @@ def main():
                 # This is the last time we received new audio data from the queue.
                 phrase_time = now
                 start_time = time.perf_counter()
-                
+
                 # Combine audio data from queue
                 audio_data = b''.join(data_queue.queue)
                 data_queue.queue.clear()
-                
+
                 # in-ram buffer를 임시파일 없이 모델이 직접 사용할 수 있는 것으로 변환한다.
                 # 데이터를 16 bit wide integers에서 floating point with a width of 32 bits로 변환한다. 
                 # audio stream frequency를 최대 32,768hz의 PCM 파장 호환 기본값으로 고정합니다.
@@ -149,8 +149,8 @@ def main():
                 # send(text)
                 new_sentence = True if only_once or phrase_complete else False
                 only_once = False
-                timestamp_string = timestamp(phrase_time)
-                elapsed_time_string = elapsed_time(start_time, end_time)
+                timestamp_string = timestamp_format(phrase_time)
+                elapsed_time_string = elapsed_time_format(start_time, end_time)
                 new_sentence_string = 'O' if new_sentence else 'X'
                 print(f"{timestamp_string} [{elapsed_time_string}ms, new: {new_sentence_string}] {text}")
                 write_stt(log_file, timestamp_string, elapsed_time_string, new_sentence_string, text)
@@ -166,6 +166,7 @@ def main():
     log_file.close()
     print("\n\n>>> END")
 
+
 def create_directory(directory):
     try:
         if not os.path.exists(directory):
@@ -173,15 +174,19 @@ def create_directory(directory):
     except OSError:
         print("Error: Failed to create the directory.")
 
-def make_filename(format):
-    dt = datetime.now().strftime('%y%m%d_%H%M%S')
-    return 'transcribe_' + dt + '.' + format
 
-def timestamp(dt:datetime):
+def make_filename(ext):
+    dt = datetime.now().strftime('%y%m%d_%H%M%S')
+    return 'transcribe_' + dt + '.' + ext
+
+
+def timestamp_format(dt: datetime):
     return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
-def elapsed_time(start, end):
+
+def elapsed_time_format(start, end):
     return int(round((end - start) * 1000))
+
 
 def write_log_header(file):
     # log header
@@ -189,14 +194,16 @@ def write_log_header(file):
     # | Timestamp		| Elapsed	| New		| STT				                          |
     # | 			    | Time (ms)	| Sentence	|				                              |
     # +---------------------------------------------------------------------------------------+
-    file.write(f"+{'-'*87}+\n")
-    file.write(f"| Timestamp{TAB_CHAR*2}| Elapsed{TAB_CHAR}| New{TAB_CHAR*2}| STT{TAB_CHAR*4}|\n")
-    file.write(f"| {TAB_CHAR*3}| Time (ms){TAB_CHAR}| Sentence{TAB_CHAR}|{TAB_CHAR*4}|\n")
-    file.write(f"+{'-'*87}+\n")
+    file.write(f"+{'-' * 87}+\n")
+    file.write(f"| Timestamp{TAB_CHAR * 2}| Elapsed{TAB_CHAR}| New{TAB_CHAR * 2}| STT{TAB_CHAR * 4}|\n")
+    file.write(f"| {TAB_CHAR * 3}| Time (ms){TAB_CHAR}| Sentence{TAB_CHAR}|{TAB_CHAR * 4}|\n")
+    file.write(f"+{'-' * 87}+\n")
+
 
 def write_stt(file, timestamp, elapsed_time, new_sentence, stt):
     # ex) 2024-07-26 13:44:01.748	 [129ms]	 [O]		 xxxxxxxx
-    file.write(f"{timestamp}{TAB_CHAR} [{elapsed_time}ms]{TAB_CHAR} [{new_sentence}]{TAB_CHAR*2} {stt}\n")
+    file.write(f"{timestamp}{TAB_CHAR} [{elapsed_time}ms]{TAB_CHAR} [{new_sentence}]{TAB_CHAR * 2} {stt}\n")
+
 
 if __name__ == "__main__":
     main()

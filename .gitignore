@@ -65,6 +65,7 @@ Temporary Items
 .idea/misc.xml
 .idea/vcs.xml
 .idea/**/profiles_settings.xml
+.idea/codeStyles
 
 # AWS User-specific
 .idea/**/aws.xml
