@@ -360,4 +360,8 @@ pyrightconfig.json
 .history
 .ionide
 
+### My App ###
+# output
+output/
+
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,python,pycharm,visualstudiocode

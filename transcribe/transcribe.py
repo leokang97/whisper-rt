@@ -68,14 +68,18 @@ def main():
     else:
         source = sr.Microphone(sample_rate=SAMPLE_RATE)
 
-    print(f">>> cuda available : {torch.cuda.is_available()}")
+    print(f">>> cuda available: {torch.cuda.is_available()}")
+    print(f">>> mps available: {torch.backends.mps.is_available()}")
 
     # Load / Download model
     model = args.model
     if not args.model.startswith('large') and not args.non_english:
         model = model + ".en"
     # Parameters:
-    # in_memory: bool - whether to preload the model weights into host memory
+    # in_memory (bool): whether to preload the model weights into host memory
+    # notes: Apple Silicon(M1, M2 칩)에서 device='mps' 형식은 지원되지 않는다.
+    # NotImplementedError: Could not run 'aten::_sparse_coo_tensor_with_dims_and_tensors' with arguments
+    # from the 'SparseMPS' backend
     audio_model = whisper.load_model(name=model)
     print(f">>> \"{model}\" Model loaded.\n")
 
@@ -138,7 +142,8 @@ def main():
 
                 # Read the transcription.
                 # Parameters:
-                # language: str - language spoken in the audio, specify None to perform language detection (default: None)
+                # language (str): language spoken in the audio, specify None to perform language detection
+                #     (default: None)
                 result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available(), language='ko')
                 text = result['text'].strip()
                 if not text:
@@ -191,12 +196,12 @@ def elapsed_time_format(start, end):
 def write_log_header(file):
     # log header
     # +---------------------------------------------------------------------------------------+
-    # | Timestamp		| Elapsed	| New		| STT				                          |
-    # | 			    | Time (ms)	| Sentence	|				                              |
+    # | Timestamp (yyyy‑MM‑dd   | Elapsed	| New		| STT				                  |
+    # | HH:mm:ss.SSS)			| Time (ms)	| Sentence	|				                      |
     # +---------------------------------------------------------------------------------------+
     file.write(f"+{'-' * 87}+\n")
-    file.write(f"| Timestamp{TAB_CHAR * 2}| Elapsed{TAB_CHAR}| New{TAB_CHAR * 2}| STT{TAB_CHAR * 4}|\n")
-    file.write(f"| {TAB_CHAR * 3}| Time (ms){TAB_CHAR}| Sentence{TAB_CHAR}|{TAB_CHAR * 4}|\n")
+    file.write(f"| Timestamp (yyyy‑MM‑dd{TAB_CHAR}| Elapsed{TAB_CHAR}| New{TAB_CHAR * 2}| STT{TAB_CHAR * 4}|\n")
+    file.write(f"| HH:mm:ss.SSS){TAB_CHAR * 2}| Time (ms){TAB_CHAR}| Sentence{TAB_CHAR}|{TAB_CHAR * 4}|\n")
     file.write(f"+{'-' * 87}+\n")
 
 
