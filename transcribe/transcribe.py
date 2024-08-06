@@ -1,5 +1,6 @@
 import argparse
 import os
+import threading
 import time
 from datetime import datetime, timedelta
 from queue import Queue
@@ -9,6 +10,7 @@ import numpy as np
 import speech_recognition as sr
 import torch
 import whisper
+from speech_recognition import WaitTimeoutError
 
 # references
 # https://github.com/davabase/whisper_real_time
@@ -48,7 +50,6 @@ def main():
     recorder.energy_threshold = args.energy_threshold
     # dynamic energy compensation이 SpeechRecognizer가 녹음을 멈추지 않는 지점까지 energy threshold 값을 극적으로 낮춘다.
     recorder.dynamic_energy_threshold = False
-    # parameters
 
     # Important for linux users.
     # Prevents permanent application hang and crash by using the wrong Microphone
@@ -88,9 +89,12 @@ def main():
     # How much empty space between recordings before we consider it a new line in the transcription. (unit: seconds)
     phrase_timeout = args.phrase_timeout
 
-    only_once = True
+    # internal variables
+    non_speaking = [False]
 
     with source:
+        # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
+        # 1초 동안 오디오 소스를 분석하기 때문에 1초 후부터 음성을 인식할 수 있다.
         recorder.adjust_for_ambient_noise(source)
 
     def record_callback(_, audio: sr.AudioData) -> None:
@@ -98,13 +102,19 @@ def main():
         Threaded callback function to receive audio data when recordings finish.
         audio: An AudioData containing the recorded bytes.
         """
-        # Grab the raw bytes and push it into the thread safe queue.
-        data = audio.get_raw_data()
-        data_queue.put(data)
+        old_value = non_speaking[0]
+        non_speaking[0] = True if audio is None else False
+        if old_value != non_speaking[0]:
+            print(f"non-speaking status : [{old_value} > {non_speaking[0]}]")
+
+        if audio is not None:
+            # Grab the raw bytes and push it into the thread safe queue.
+            data = audio.get_raw_data()
+            data_queue.put(data)
 
     # Create a background thread that will pass us raw audio bytes.
     # We could do this manually but SpeechRecognizer provides a nice helper.
-    recorder.listen_in_background(source, record_callback, phrase_time_limit=record_timeout)
+    listen_in_background(recorder, source, record_callback, phrase_time_limit=record_timeout)
 
     create_directory(LOG_DIR_NAME)
     log_path = os.path.join(LOG_DIR_NAME, make_filename('txt'))
@@ -114,8 +124,11 @@ def main():
 
     # Cue the user that we're ready to go.
     print(">>> Recorder is ready.\n")
-    time.sleep(0.5)
+    time.sleep(1)
     print(">>> START\n")
+
+    phrase_in_progress = ''
+    phrase_timestamp = None
 
     while True:
         try:
@@ -136,7 +149,7 @@ def main():
                 data_queue.queue.clear()
 
                 # in-ram buffer를 임시파일 없이 모델이 직접 사용할 수 있는 것으로 변환한다.
-                # 데이터를 16 bit wide integers에서 floating point with a width of 32 bits로 변환한다. 
+                # 데이터를 16 bit wide integers에서 floating point with a width of 32 bits로 변환한다.
                 # audio stream frequency를 최대 32,768hz의 PCM 파장 호환 기본값으로 고정합니다.
                 audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
 
@@ -146,30 +159,107 @@ def main():
                 #     (default: None)
                 result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available(), language='ko')
                 text = result['text'].strip()
-                if not text:
-                    continue
                 end_time = time.perf_counter()
-
-                # TODO: STT 전달
-                # send(text)
-                new_sentence = True if only_once or phrase_complete else False
-                only_once = False
                 timestamp_string = timestamp_format(phrase_time)
                 elapsed_time_string = elapsed_time_format(start_time, end_time)
-                new_sentence_string = 'O' if new_sentence else 'X'
-                print(f"{timestamp_string} [{elapsed_time_string}ms, new: {new_sentence_string}] {text}")
-                write_stt(log_file, timestamp_string, elapsed_time_string, new_sentence_string, text)
+                print(f"{timestamp_string} [{elapsed_time_string}ms, phrase_complete: {phrase_complete}, "
+                      f"phrase_in_progress: {bool(phrase_in_progress)}] {text}")
+
+                # If we detected a pause between recordings, add a new item to our transcription.
+                # Otherwise, edit the existing one.
+                if phrase_complete and phrase_in_progress:
+                    # 이전의 진행 중이던 구절은 완료 처리한다.
+                    # TODO: STT 전달
+                    # send(text)
+                    phrase_timestamp_string = timestamp_format(phrase_timestamp)
+                    print(f">>>{phrase_timestamp_string} [phrase_complete] {phrase_in_progress}")
+                    write_stt(log_file, phrase_timestamp_string, phrase_in_progress)
+
+                    # 새롭게 진행 중 구절을 시작한다.
+                    phrase_in_progress = text
+                    phrase_timestamp = phrase_time
+                else:
+                    if not phrase_in_progress:
+                        phrase_in_progress = text
+                        phrase_timestamp = phrase_time
+                    else:
+                        phrase_in_progress += ' ' + text
+
+                print(f"phrase_in_progress={phrase_in_progress}")
 
                 # Flush stdout.
                 print('', end='', flush=True)
             else:
                 # Infinite loops are bad for processors, must sleep.
-                time.sleep(0.25)
+                # non-speaking 간주 기준: 1초 동안 listening 하여 0.8초(pause_threshold) 동안 말하지 않거나
+                # 더 이상 오디오 입력이 없음.
+                time.sleep(1)
+
+                # 1초 후에 non-speaking 상태를 체크한다.
+                if non_speaking[0] and phrase_in_progress:
+                    print("No speech detected. The phrase is considered complete.")
+                    # send(text)
+                    phrase_timestamp_string = timestamp_format(phrase_timestamp)
+                    print(f">>>{phrase_timestamp_string}  [record_finished] {phrase_in_progress}")
+                    write_stt(log_file, phrase_timestamp_string, phrase_in_progress)
+                    phrase_in_progress = ''
+
         except KeyboardInterrupt:
             break
 
     log_file.close()
     print("\n\n>>> END")
+
+
+def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
+    """
+    소스 출처 : speech_recognition > Recognizer > listen_in_background()
+
+    Spawns a thread to repeatedly record phrases from ``source`` (an ``AudioSource`` instance) into an
+    ``AudioData`` instance and call ``callback`` with that ``AudioData`` instance as soon as each phrase are
+    detected.
+
+    Returns a function object that, when called, requests that the background listener thread stop. The
+    background thread is a daemon and will not stop the program from exiting if there are no other non-daemon
+    threads. The function accepts one parameter, ``wait_for_stop``: if truthy, the function will wait for the
+    background listener to stop before returning, otherwise it will return immediately and the background
+    listener thread might still be running for a second or two afterward. Additionally, if you are using a
+    truthy value for ``wait_for_stop``, you must call the function from the same thread you originally called
+    ``listen_in_background`` from.
+
+    Phrase recognition uses the exact same mechanism as ``recognizer_instance.listen(source)``. The
+    ``phrase_time_limit`` parameter works in the same way as the ``phrase_time_limit`` parameter for
+    ``recognizer_instance.listen(source)``, as well.
+
+    The ``callback`` parameter is a function that should accept two parameters - the ``recognizer_instance``,
+    and an ``AudioData`` instance representing the captured audio. Note that ``callback`` function will be called
+    from a non-main thread.
+    """
+    running = [True]
+
+    def threaded_listen():
+        with source as s:
+            while running[0]:
+                try:  # listen for 1 second, then check again if the stop function has been called
+                    audio = recognizer.listen(s, 1, phrase_time_limit)
+                except WaitTimeoutError:  # listening timed out, just try again
+                    # modified: non-speaking 일 경우, audio data를 None으로 설정한다.
+                    if running[0]:
+                        callback(recognizer, None)
+                    # pass
+                else:
+                    if running[0]:
+                        callback(recognizer, audio)
+
+    def stopper(wait_for_stop=True):
+        running[0] = False
+        if wait_for_stop:
+            listener_thread.join()  # block until the background thread is done, which can take around 1 second
+
+    listener_thread = threading.Thread(target=threaded_listen)
+    listener_thread.daemon = True
+    listener_thread.start()
+    return stopper
 
 
 def create_directory(directory):
@@ -196,18 +286,18 @@ def elapsed_time_format(start, end):
 def write_log_header(file):
     # log header
     # +---------------------------------------------------------------------------------------+
-    # | Timestamp (yyyy‑MM‑dd   | Elapsed	| New		| STT				                  |
-    # | HH:mm:ss.SSS)			| Time (ms)	| Sentence	|				                      |
+    # | Timestamp (yyyy‑MM‑dd   | STT				                                          |
+    # | HH:mm:ss.SSS)			|                                                             |
     # +---------------------------------------------------------------------------------------+
     file.write(f"+{'-' * 87}+\n")
-    file.write(f"| Timestamp (yyyy‑MM‑dd{TAB_CHAR}| Elapsed{TAB_CHAR}| New{TAB_CHAR * 2}| STT{TAB_CHAR * 4}|\n")
-    file.write(f"| HH:mm:ss.SSS){TAB_CHAR * 2}| Time (ms){TAB_CHAR}| Sentence{TAB_CHAR}|{TAB_CHAR * 4}|\n")
+    file.write(f"| Timestamp (yyyy‑MM‑dd{TAB_CHAR}| STT{TAB_CHAR * 8}|\n")
+    file.write(f"| HH:mm:ss.SSS){TAB_CHAR * 2}|{TAB_CHAR * 8}|\n")
     file.write(f"+{'-' * 87}+\n")
 
 
-def write_stt(file, timestamp, elapsed_time, new_sentence, stt):
-    # ex) 2024-07-26 13:44:01.748	 [129ms]	 [O]		 xxxxxxxx
-    file.write(f"{timestamp}{TAB_CHAR} [{elapsed_time}ms]{TAB_CHAR} [{new_sentence}]{TAB_CHAR * 2} {stt}\n")
+def write_stt(file, timestamp, stt):
+    # ex) 2024-07-26 13:44:01.748	 xxxxxxxx
+    file.write(f"{timestamp}{TAB_CHAR} {stt}\n")
 
 
 if __name__ == "__main__":
