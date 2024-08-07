@@ -127,8 +127,9 @@ def main():
     time.sleep(1)
     print(">>> START\n")
 
-    phrase_in_progress = ''
-    phrase_timestamp = None
+    just_first_time = True
+    speech_in_progress = ''
+    speech_timestamp = None
 
     while True:
         try:
@@ -143,6 +144,20 @@ def main():
                 # This is the last time we received new audio data from the queue.
                 phrase_time = now
                 start_time = time.perf_counter()
+
+                new_speech_started = False
+                if just_first_time or (phrase_complete and speech_in_progress):
+                    just_first_time = False
+                    new_speech_started = True
+                else:
+                    if not speech_in_progress:
+                        # case: record finished로 이전 speech 완료된 상태
+                        new_speech_started = True
+
+                if new_speech_started:
+                    # 새로운 speech 시작
+                    print(f"{timestamp_format(phrase_time)} [new speech started]")
+                    send_new_speech_started(phrase_time)
 
                 # Combine audio data from queue
                 audio_data = b''.join(data_queue.queue)
@@ -163,29 +178,29 @@ def main():
                 timestamp_string = timestamp_format(phrase_time)
                 elapsed_time_string = elapsed_time_format(start_time, end_time)
                 print(f"{timestamp_string} [{elapsed_time_string}ms, phrase_complete: {phrase_complete}, "
-                      f"phrase_in_progress: {bool(phrase_in_progress)}] {text}")
+                      f"speech_in_progress: {bool(speech_in_progress)}] {text}")
 
                 # If we detected a pause between recordings, add a new item to our transcription.
                 # Otherwise, edit the existing one.
-                if phrase_complete and phrase_in_progress:
-                    # 이전의 진행 중이던 구절은 완료 처리한다.
-                    # TODO: STT 전달
-                    # send(text)
-                    phrase_timestamp_string = timestamp_format(phrase_timestamp)
-                    print(f">>>{phrase_timestamp_string} [phrase_complete] {phrase_in_progress}")
-                    write_stt(log_file, phrase_timestamp_string, phrase_in_progress)
+                if phrase_complete and speech_in_progress:
+                    # 진행 중이던 speech 완료 처리
+                    speech_timestamp_string = timestamp_format(speech_timestamp)
+                    print(f">>>{speech_timestamp_string} [phrase_complete] {speech_in_progress}")
+                    send_stt(speech_timestamp_string, speech_in_progress)
+                    write_stt(log_file, speech_timestamp_string, speech_in_progress)
 
-                    # 새롭게 진행 중 구절을 시작한다.
-                    phrase_in_progress = text
-                    phrase_timestamp = phrase_time
+                    # 새로운 speech 시작
+                    speech_timestamp = phrase_time
+                    speech_in_progress = text
                 else:
-                    if not phrase_in_progress:
-                        phrase_in_progress = text
-                        phrase_timestamp = phrase_time
+                    if not speech_in_progress:
+                        # record finished로 이전 speech 완료 후 새로운 speech 시작
+                        speech_timestamp = phrase_time
+                        speech_in_progress = text
                     else:
-                        phrase_in_progress += ' ' + text
+                        speech_in_progress += ' ' + text
 
-                print(f"phrase_in_progress={phrase_in_progress}")
+                print(f"speech_in_progress={speech_in_progress}")
 
                 # Flush stdout.
                 print('', end='', flush=True)
@@ -196,13 +211,13 @@ def main():
                 time.sleep(1)
 
                 # 1초 후에 non-speaking 상태를 체크한다.
-                if non_speaking[0] and phrase_in_progress:
+                if non_speaking[0] and speech_in_progress:
                     print("No speech detected. The phrase is considered complete.")
-                    # send(text)
-                    phrase_timestamp_string = timestamp_format(phrase_timestamp)
-                    print(f">>>{phrase_timestamp_string}  [record_finished] {phrase_in_progress}")
-                    write_stt(log_file, phrase_timestamp_string, phrase_in_progress)
-                    phrase_in_progress = ''
+                    speech_timestamp_string = timestamp_format(speech_timestamp)
+                    print(f">>>{speech_timestamp_string} [record_finished] {speech_in_progress}")
+                    send_stt(speech_timestamp_string, speech_in_progress)
+                    write_stt(log_file, speech_timestamp_string, speech_in_progress)
+                    speech_in_progress = ''
 
         except KeyboardInterrupt:
             break
@@ -298,6 +313,16 @@ def write_log_header(file):
 def write_stt(file, timestamp, stt):
     # ex) 2024-07-26 13:44:01.748	 xxxxxxxx
     file.write(f"{timestamp}{TAB_CHAR} {stt}\n")
+
+
+def send_new_speech_started(timestamp):
+    # TODO: send a new speech starting point
+    pass
+
+
+def send_stt(timestamp_string, stt):
+    # TODO: send stt
+    pass
 
 
 if __name__ == "__main__":
