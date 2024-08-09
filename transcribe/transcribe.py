@@ -12,6 +12,8 @@ import torch
 import whisper
 from speech_recognition import WaitTimeoutError
 
+from proto.asr_client import AsrClient
+
 # references
 # https://github.com/davabase/whisper_real_time
 
@@ -50,6 +52,8 @@ def main():
     recorder.energy_threshold = args.energy_threshold
     # dynamic energy compensation이 SpeechRecognizer가 녹음을 멈추지 않는 지점까지 energy threshold 값을 극적으로 낮춘다.
     recorder.dynamic_energy_threshold = False
+    # gRPC ASR client instance
+    asr_client = AsrClient()
 
     # Important for linux users.
     # Prevents permanent application hang and crash by using the wrong Microphone
@@ -156,8 +160,9 @@ def main():
 
                 if new_speech_started:
                     # 새로운 speech 시작
-                    print(f"{timestamp_format(phrase_time)} [new speech started]")
-                    send_new_speech_started(phrase_time)
+                    phrase_timestamp_string = timestamp_format(phrase_time)
+                    print(f"{phrase_timestamp_string} [new speech started]")
+                    send_new_speech_started(asr_client, phrase_timestamp_string)
 
                 # Combine audio data from queue
                 audio_data = b''.join(data_queue.queue)
@@ -186,7 +191,7 @@ def main():
                     # 진행 중이던 speech 완료 처리
                     speech_timestamp_string = timestamp_format(speech_timestamp)
                     print(f">>>{speech_timestamp_string} [phrase_complete] {speech_in_progress}")
-                    send_stt(speech_timestamp_string, speech_in_progress)
+                    send_stt(asr_client, speech_timestamp_string, speech_in_progress)
                     write_stt(log_file, speech_timestamp_string, speech_in_progress)
 
                     # 새로운 speech 시작
@@ -215,7 +220,7 @@ def main():
                     print("No speech detected. The phrase is considered complete.")
                     speech_timestamp_string = timestamp_format(speech_timestamp)
                     print(f">>>{speech_timestamp_string} [record_finished] {speech_in_progress}")
-                    send_stt(speech_timestamp_string, speech_in_progress)
+                    send_stt(asr_client, speech_timestamp_string, speech_in_progress)
                     write_stt(log_file, speech_timestamp_string, speech_in_progress)
                     speech_in_progress = ''
 
@@ -315,14 +320,20 @@ def write_stt(file, timestamp, stt):
     file.write(f"{timestamp}{TAB_CHAR} {stt}\n")
 
 
-def send_new_speech_started(timestamp):
-    # TODO: send a new speech starting point
-    pass
+def send_new_speech_started(client, timestamp_string):
+    # send a new speech starting point
+    data = '{ "Timestamp":"%s" }' % timestamp_string
+    response = client.send_message('MSG_NEW_SPEECH_STARTED', data)
+    if response:
+        print(f"ASR Client received: status={response.status},message=[{response.message}]")
 
 
-def send_stt(timestamp_string, stt):
-    # TODO: send stt
-    pass
+def send_stt(client, timestamp_string, stt):
+    # send stt
+    data = '{ "Timestamp":"%s", "Stt":"%s" }' % (timestamp_string, stt)
+    response = client.send_message('MSG_ASR', data)
+    if response:
+        print(f"ASR Client received: status={response.status},message=[{response.message}]")
 
 
 if __name__ == "__main__":

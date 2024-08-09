@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package obigo;
+
+service WebAppService {
+    rpc Message(RequestMessage) returns (ResponseMessage) {}
+    rpc Event(google.protobuf.Empty) returns (stream EventMessage) {}
+}
+service AIService {
+    rpc Message(RequestMessage) returns (ResponseMessage) {}
+    rpc Event(google.protobuf.Empty) returns (stream EventMessage) {}
+}
+
+message RequestMessage {
+    string method = 1;
+    string data = 2;
+}
+message ResponseMessage {
+    bool status = 1;
+    string message = 2;
+}
+message EventMessage {
+    string method = 1;
+    string data = 2;
+}
