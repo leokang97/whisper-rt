@@ -6,3 +6,4 @@ pytorch
 numpy
 git+https://github.com/openai/whisper.git
 grpcio
+grpcio-tools
