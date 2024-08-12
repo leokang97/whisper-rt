@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 
-BASE_DIR="/파일이 있는 경로를 입력"
-RESULT="/실행 결과를 출력할 경로를 입력"
+BASE_DIR="/home/obigo/github/whisper-rt"
+RESULT="/home/obigo/github/whisper-rt/output/auto_runs.txt"
 
 StartTime=$(date +%s)
 
@@ -15,19 +15,22 @@ msg() {
 }
 
 conda_act() {
-	source ~anaconda3/etc/profile.d/conda.sh
+	source /home/obigo/anaconda3/etc/profile.d/conda.sh
 	conda activate whisper_rt
+	conda info | tee -a "$RESULT"
 }
 
 msg "[START   ] Script Started!"
 
 conda_act
 
-cd $BASE_DIR
+cd $BASE_DIR || exit
 
-~/anaconda3/envs/가상환경 이름/bin/python `파일명(~.py)`
+# -u: unbuffered output
+/home/obigo/anaconda3/envs/whisper_rt/bin/python -u /home/obigo/github/whisper-rt/main.py --model "large-v3"
 
 EndTime=$(date +%s)
 
 msg "[END     ] Script End!"
-msg "[RUN-TIME] Total Spent time : $(($EndTime - $StartTime)) Second"
+msg "[RUN-TIME] Total Spent time : $((EndTime - StartTime)) Second"
+echo -e "\n" | tee -a "$RESULT"
