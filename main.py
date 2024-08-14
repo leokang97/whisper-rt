@@ -1,3 +1,8 @@
-from transcribe.transcribe import main
+from transcribe import transcribe
+from utils import file_util
+import constants
 
-main()
+
+file_util.create_directory(constants.LOG_DIR_NAME)
+
+transcribe.main()

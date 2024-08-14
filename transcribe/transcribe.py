@@ -1,5 +1,5 @@
 import argparse
-import os
+import logging
 import threading
 import time
 from datetime import datetime, timedelta
@@ -12,14 +12,32 @@ import torch
 import whisper
 from speech_recognition import WaitTimeoutError
 
+import constants
 from proto.asr_client import AsrClient
+from utils import file_util
 
 # references
 # https://github.com/davabase/whisper_real_time
 
-TAB_CHAR = '\t'
 SAMPLE_RATE = 16_000
-LOG_DIR_NAME = 'output'
+
+logger = logging.getLogger('transcribe')
+logger.setLevel(logging.DEBUG)
+
+# console logger
+console_formatter = logging.Formatter(constants.LOG_FORMATTER)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(console_formatter)
+logger.addHandler(console_handler)
+
+# file logger
+file_formatter = logging.Formatter(constants.LOG_FORMATTER)
+log_path = '%s/%s' % (constants.LOG_DIR_NAME, file_util.make_filename('transcribe', 'log'))
+file_handler = logging.FileHandler(log_path)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
 
 
 def main():
@@ -60,21 +78,20 @@ def main():
     if 'linux' in platform:
         mic_name = args.default_microphone
         if not mic_name or mic_name == 'list':
-            print("Available microphone devices are: ")
+            logger.debug("Available microphone devices are: ")
             for index, name in enumerate(sr.Microphone.list_microphone_names()):
-                print(f"[{index}] Microphone with name \"{name}\" found")
+                logger.debug(f"[{index}] Microphone with name \"{name}\" found")
             return
         else:
             for index, name in enumerate(sr.Microphone.list_microphone_names()):
                 if mic_name in name:
                     source = sr.Microphone(sample_rate=SAMPLE_RATE, device_index=index)
-                    print(f">>> Selected Microphone name : \"{name}\"\n")
+                    logger.info(f"Selected Microphone name : \"{name}\"\n")
                     break
     else:
         source = sr.Microphone(sample_rate=SAMPLE_RATE)
 
-    print(f">>> cuda available: {torch.cuda.is_available()}")
-    print(f">>> mps available: {torch.backends.mps.is_available()}")
+    logger.info(f"cuda available: {torch.cuda.is_available()}, mps available: {torch.backends.mps.is_available()}")
 
     # Load / Download model
     model = args.model
@@ -86,7 +103,7 @@ def main():
     # NotImplementedError: Could not run 'aten::_sparse_coo_tensor_with_dims_and_tensors' with arguments
     # from the 'SparseMPS' backend
     audio_model = whisper.load_model(name=model)
-    print(f">>> \"{model}\" Model loaded.\n")
+    logger.info(f"\"{model}\" Model loaded.\n")
 
     # How real time the recording is in seconds.
     record_timeout = args.record_timeout
@@ -109,7 +126,7 @@ def main():
         old_value = non_speaking[0]
         non_speaking[0] = True if audio is None else False
         if old_value != non_speaking[0]:
-            print(f"non-speaking status : [{old_value} > {non_speaking[0]}]")
+            logger.debug(f"non-speaking status : ({old_value} > {non_speaking[0]})")
 
         if audio is not None:
             # Grab the raw bytes and push it into the thread safe queue.
@@ -120,16 +137,10 @@ def main():
     # We could do this manually but SpeechRecognizer provides a nice helper.
     listen_in_background(recorder, source, record_callback, phrase_time_limit=record_timeout)
 
-    create_directory(LOG_DIR_NAME)
-    log_path = os.path.join(LOG_DIR_NAME, make_filename('txt'))
-    log_file = open(log_path, 'w')
-    print(f">>> log file path: {log_path}")
-    write_log_header(log_file)
-
     # Cue the user that we're ready to go.
-    print(">>> Recorder is ready.\n")
+    logger.info("Recorder is ready.\n")
     time.sleep(1)
-    print(">>> START\n")
+    logger.info("START\n")
 
     just_first_time = True
     speech_in_progress = ''
@@ -161,7 +172,7 @@ def main():
                 if new_speech_started:
                     # 새로운 speech 시작
                     phrase_timestamp_string = timestamp_format(phrase_time)
-                    print(f"{phrase_timestamp_string} [new speech started]")
+                    logger.debug(f"[{phrase_timestamp_string}] new speech started")
                     send_new_speech_started(asr_client, phrase_timestamp_string)
 
                 # Combine audio data from queue
@@ -182,17 +193,17 @@ def main():
                 end_time = time.perf_counter()
                 timestamp_string = timestamp_format(phrase_time)
                 elapsed_time_string = elapsed_time_format(start_time, end_time)
-                print(f"{timestamp_string} [{elapsed_time_string}ms, phrase_complete: {phrase_complete}, "
-                      f"speech_in_progress: {bool(speech_in_progress)}] {text}")
+                logger.debug(f"[{timestamp_string}, {elapsed_time_string}ms, phrase_complete: {phrase_complete}, "
+                             f"speech_in_progress: {bool(speech_in_progress)}] {text}")
 
                 # If we detected a pause between recordings, add a new item to our transcription.
                 # Otherwise, edit the existing one.
                 if phrase_complete and speech_in_progress:
                     # 진행 중이던 speech 완료 처리
                     speech_timestamp_string = timestamp_format(speech_timestamp)
-                    print(f">>>{speech_timestamp_string} [phrase_complete] {speech_in_progress}")
+                    logger.debug(f"[{speech_timestamp_string}, phrase_complete] {speech_in_progress}")
                     send_stt(asr_client, speech_timestamp_string, speech_in_progress)
-                    write_stt(log_file, speech_timestamp_string, speech_in_progress)
+                    logger.info(f"[{speech_timestamp_string}] {speech_in_progress}")
 
                     # 새로운 speech 시작
                     speech_timestamp = phrase_time
@@ -205,10 +216,7 @@ def main():
                     else:
                         speech_in_progress += ' ' + text
 
-                print(f"speech_in_progress={speech_in_progress}")
-
-                # Flush stdout.
-                print('', end='', flush=True)
+                logger.debug(f"speech_in_progress={speech_in_progress}")
             else:
                 # Infinite loops are bad for processors, must sleep.
                 # non-speaking 간주 기준: 1초 동안 listening 하여 0.8초(pause_threshold) 동안 말하지 않거나
@@ -217,18 +225,17 @@ def main():
 
                 # 1초 후에 non-speaking 상태를 체크한다.
                 if non_speaking[0] and speech_in_progress:
-                    print("No speech detected. The phrase is considered complete.")
+                    logger.debug("No speech detected. The phrase is considered complete.")
                     speech_timestamp_string = timestamp_format(speech_timestamp)
-                    print(f">>>{speech_timestamp_string} [record_finished] {speech_in_progress}")
+                    logger.debug(f"[{speech_timestamp_string}, record_finished] {speech_in_progress}")
                     send_stt(asr_client, speech_timestamp_string, speech_in_progress)
-                    write_stt(log_file, speech_timestamp_string, speech_in_progress)
+                    logger.info(f"[{speech_timestamp_string}] {speech_in_progress}")
                     speech_in_progress = ''
 
         except KeyboardInterrupt:
             break
 
-    log_file.close()
-    print("\n\n>>> END")
+    logger.info("\n\nEND")
 
 
 def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
@@ -282,19 +289,6 @@ def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
     return stopper
 
 
-def create_directory(directory):
-    try:
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-    except OSError:
-        print("Error: Failed to create the directory.")
-
-
-def make_filename(ext):
-    dt = datetime.now().strftime('%y%m%d_%H%M%S')
-    return 'transcribe_' + dt + '.' + ext
-
-
 def timestamp_format(dt: datetime):
     return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
@@ -303,29 +297,12 @@ def elapsed_time_format(start, end):
     return int(round((end - start) * 1000))
 
 
-def write_log_header(file):
-    # log header
-    # +---------------------------------------------------------------------------------------+
-    # | Timestamp (yyyy‑MM‑dd   | STT				                                          |
-    # | HH:mm:ss.SSS)			|                                                             |
-    # +---------------------------------------------------------------------------------------+
-    file.write(f"+{'-' * 87}+\n")
-    file.write(f"| Timestamp (yyyy‑MM‑dd{TAB_CHAR}| STT{TAB_CHAR * 8}|\n")
-    file.write(f"| HH:mm:ss.SSS){TAB_CHAR * 2}|{TAB_CHAR * 8}|\n")
-    file.write(f"+{'-' * 87}+\n")
-
-
-def write_stt(file, timestamp, stt):
-    # ex) 2024-07-26 13:44:01.748	 xxxxxxxx
-    file.write(f"{timestamp}{TAB_CHAR} {stt}\n")
-
-
 def send_new_speech_started(client, timestamp_string):
     # send a new speech starting point
     data = '{ "Timestamp":"%s" }' % timestamp_string
     response = client.send_message('MSG_NEW_SPEECH_STARTED', data)
     if response:
-        print(f"ASR Client received: status={response.status},message=[{response.message}]")
+        logger.debug(f"ASR Client received: status={response.status},message=[{response.message}]")
 
 
 def send_stt(client, timestamp_string, stt):
@@ -333,7 +310,7 @@ def send_stt(client, timestamp_string, stt):
     data = '{ "Timestamp":"%s", "Stt":"%s" }' % (timestamp_string, stt)
     response = client.send_message('MSG_ASR', data)
     if response:
-        print(f"ASR Client received: status={response.status},message=[{response.message}]")
+        logger.debug(f"ASR Client received: status={response.status},message=[{response.message}]")
 
 
 if __name__ == "__main__":
