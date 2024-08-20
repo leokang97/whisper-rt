@@ -20,6 +20,7 @@ from utils import file_util
 # https://github.com/davabase/whisper_real_time
 
 SAMPLE_RATE = 16_000
+dummy_stt = ['감사합니다.', '시청해주셔서 감사합니다.']
 
 logger = logging.getLogger('transcribe')
 logger.setLevel(logging.DEBUG)
@@ -193,30 +194,33 @@ def main():
                 end_time = time.perf_counter()
                 timestamp_string = timestamp_format(phrase_time)
                 elapsed_time_string = elapsed_time_format(start_time, end_time)
+                is_speech_in_progress = bool(speech_in_progress)
                 logger.debug(f"[{timestamp_string}, {elapsed_time_string}ms, phrase_complete: {phrase_complete}, "
-                             f"speech_in_progress: {bool(speech_in_progress)}] {text}")
+                             f"is_speech_in_progress: {is_speech_in_progress}] {text}")
 
-                # If we detected a pause between recordings, add a new item to our transcription.
-                # Otherwise, edit the existing one.
-                if phrase_complete and speech_in_progress:
-                    # 진행 중이던 speech 완료 처리
-                    speech_timestamp_string = timestamp_format(speech_timestamp)
-                    logger.debug(f"[{speech_timestamp_string}, phrase_complete] {speech_in_progress}")
-                    send_stt(asr_client, speech_timestamp_string, speech_in_progress)
-                    logger.info(f"[{speech_timestamp_string}] {speech_in_progress}")
-
-                    # 새로운 speech 시작
-                    speech_timestamp = phrase_time
-                    speech_in_progress = text
+                if drop_dummy_stt(is_speech_in_progress, text):
+                    logger.debug(f"dropped stt={text}")
                 else:
-                    if not speech_in_progress:
-                        # record finished로 이전 speech 완료 후 새로운 speech 시작
+                    # If we detected a pause between recordings, add a new item to our transcription.
+                    # Otherwise, edit the existing one.
+                    if phrase_complete and speech_in_progress:
+                        # 진행 중이던 speech 완료 처리
+                        speech_timestamp_string = timestamp_format(speech_timestamp)
+                        logger.debug(f"[{speech_timestamp_string}, phrase_complete] {speech_in_progress}")
+                        send_stt(asr_client, speech_timestamp_string, speech_in_progress)
+                        logger.info(f"[{speech_timestamp_string}] {speech_in_progress}")
+
+                        # 새로운 speech 시작
                         speech_timestamp = phrase_time
                         speech_in_progress = text
                     else:
-                        speech_in_progress += ' ' + text
-
-                logger.debug(f"speech_in_progress={speech_in_progress}")
+                        if not speech_in_progress:
+                            # record finished로 이전 speech 완료 후 새로운 speech 시작
+                            speech_timestamp = phrase_time
+                            speech_in_progress = text
+                        else:
+                            speech_in_progress += ' ' + text
+                    logger.debug(f"speech_in_progress={speech_in_progress}")
             else:
                 # Infinite loops are bad for processors, must sleep.
                 # non-speaking 간주 기준: 1초 동안 listening 하여 0.8초(pause_threshold) 동안 말하지 않거나
@@ -311,6 +315,10 @@ def send_stt(client, timestamp_string, stt):
     response = client.send_message('MSG_ASR', data)
     if response:
         logger.debug(f"ASR Client received: status={response.status},message=[{response.message}]")
+
+
+def drop_dummy_stt(in_progress, stt):
+    return True if not in_progress and stt in dummy_stt else False
 
 
 if __name__ == "__main__":
