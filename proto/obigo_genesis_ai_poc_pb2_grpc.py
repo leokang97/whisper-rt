@@ -192,3 +192,158 @@ class AIService(object):
             obigo__genesis__ai__poc__pb2.EventMessage.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+
+class CameraServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Message = channel.unary_unary(
+                '/obigo.CameraService/Message',
+                request_serializer=obigo__genesis__ai__poc__pb2.RequestMessage.SerializeToString,
+                response_deserializer=obigo__genesis__ai__poc__pb2.ResponseMessage.FromString,
+                )
+        self.Event = channel.unary_stream(
+                '/obigo.CameraService/Event',
+                request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                response_deserializer=obigo__genesis__ai__poc__pb2.EventMessage.FromString,
+                )
+
+
+class CameraServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def Message(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Event(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_CameraServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Message': grpc.unary_unary_rpc_method_handler(
+                    servicer.Message,
+                    request_deserializer=obigo__genesis__ai__poc__pb2.RequestMessage.FromString,
+                    response_serializer=obigo__genesis__ai__poc__pb2.ResponseMessage.SerializeToString,
+            ),
+            'Event': grpc.unary_stream_rpc_method_handler(
+                    servicer.Event,
+                    request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                    response_serializer=obigo__genesis__ai__poc__pb2.EventMessage.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'obigo.CameraService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+
+
+ # This class is part of an EXPERIMENTAL API.
+class CameraService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def Message(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/obigo.CameraService/Message',
+            obigo__genesis__ai__poc__pb2.RequestMessage.SerializeToString,
+            obigo__genesis__ai__poc__pb2.ResponseMessage.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Event(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/obigo.CameraService/Event',
+            google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            obigo__genesis__ai__poc__pb2.EventMessage.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+
+class SimulatorServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Message = channel.unary_unary(
+                '/obigo.SimulatorService/Message',
+                request_serializer=obigo__genesis__ai__poc__pb2.RequestMessage.SerializeToString,
+                response_deserializer=obigo__genesis__ai__poc__pb2.ResponseMessage.FromString,
+                )
+
+
+class SimulatorServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def Message(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_SimulatorServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Message': grpc.unary_unary_rpc_method_handler(
+                    servicer.Message,
+                    request_deserializer=obigo__genesis__ai__poc__pb2.RequestMessage.FromString,
+                    response_serializer=obigo__genesis__ai__poc__pb2.ResponseMessage.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'obigo.SimulatorService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+
+
+ # This class is part of an EXPERIMENTAL API.
+class SimulatorService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def Message(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/obigo.SimulatorService/Message',
+            obigo__genesis__ai__poc__pb2.RequestMessage.SerializeToString,
+            obigo__genesis__ai__poc__pb2.ResponseMessage.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

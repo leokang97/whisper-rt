@@ -138,6 +138,9 @@ def main():
     # We could do this manually but SpeechRecognizer provides a nice helper.
     listen_in_background(recorder, source, record_callback, phrase_time_limit=record_timeout)
 
+    # start gRPC client listen
+    asr_client.start_listen()
+
     # Cue the user that we're ready to go.
     logger.info("Recorder is ready.\n")
     time.sleep(1)
@@ -238,6 +241,9 @@ def main():
 
         except KeyboardInterrupt:
             break
+
+    # stop gRPC client listen
+    asr_client.stop_listen()
 
     logger.info("\n\nEND")
 

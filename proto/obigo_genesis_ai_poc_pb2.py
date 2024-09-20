@@ -15,7 +15,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1aobigo_genesis_ai_poc.proto\x12\x05obigo\x1a\x1bgoogle/protobuf/empty.proto\".\n\x0eRequestMessage\x12\x0e\n\x06method\x18\x01 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\t\"2\n\x0fResponseMessage\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\",\n\x0c\x45ventMessage\x12\x0e\n\x06method\x18\x01 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\t2\x85\x01\n\rWebAppService\x12:\n\x07Message\x12\x15.obigo.RequestMessage\x1a\x16.obigo.ResponseMessage\"\x00\x12\x38\n\x05\x45vent\x12\x16.google.protobuf.Empty\x1a\x13.obigo.EventMessage\"\x00\x30\x01\x32\x81\x01\n\tAIService\x12:\n\x07Message\x12\x15.obigo.RequestMessage\x1a\x16.obigo.ResponseMessage\"\x00\x12\x38\n\x05\x45vent\x12\x16.google.protobuf.Empty\x1a\x13.obigo.EventMessage\"\x00\x30\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1aobigo_genesis_ai_poc.proto\x12\x05obigo\x1a\x1bgoogle/protobuf/empty.proto\".\n\x0eRequestMessage\x12\x0e\n\x06method\x18\x01 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\t\"2\n\x0fResponseMessage\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\",\n\x0c\x45ventMessage\x12\x0e\n\x06method\x18\x01 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\t2\x85\x01\n\rWebAppService\x12:\n\x07Message\x12\x15.obigo.RequestMessage\x1a\x16.obigo.ResponseMessage\"\x00\x12\x38\n\x05\x45vent\x12\x16.google.protobuf.Empty\x1a\x13.obigo.EventMessage\"\x00\x30\x01\x32\x81\x01\n\tAIService\x12:\n\x07Message\x12\x15.obigo.RequestMessage\x1a\x16.obigo.ResponseMessage\"\x00\x12\x38\n\x05\x45vent\x12\x16.google.protobuf.Empty\x1a\x13.obigo.EventMessage\"\x00\x30\x01\x32\x85\x01\n\rCameraService\x12:\n\x07Message\x12\x15.obigo.RequestMessage\x1a\x16.obigo.ResponseMessage\"\x00\x12\x38\n\x05\x45vent\x12\x16.google.protobuf.Empty\x1a\x13.obigo.EventMessage\"\x00\x30\x01\x32N\n\x10SimulatorService\x12:\n\x07Message\x12\x15.obigo.RequestMessage\x1a\x16.obigo.ResponseMessage\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,4 +32,8 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_WEBAPPSERVICE']._serialized_end=346
   _globals['_AISERVICE']._serialized_start=349
   _globals['_AISERVICE']._serialized_end=478
+  _globals['_CAMERASERVICE']._serialized_start=481
+  _globals['_CAMERASERVICE']._serialized_end=614
+  _globals['_SIMULATORSERVICE']._serialized_start=616
+  _globals['_SIMULATORSERVICE']._serialized_end=694
 # @@protoc_insertion_point(module_scope)

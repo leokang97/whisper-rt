@@ -12,6 +12,13 @@ service AIService {
     rpc Message(RequestMessage) returns (ResponseMessage) {}
     rpc Event(google.protobuf.Empty) returns (stream EventMessage) {}
 }
+service CameraService {
+    rpc Message(RequestMessage) returns (ResponseMessage) {}
+    rpc Event(google.protobuf.Empty) returns (stream EventMessage) {}
+}
+service SimulatorService {
+    rpc Message(RequestMessage) returns (ResponseMessage) {}
+}
 
 message RequestMessage {
     string method = 1;
