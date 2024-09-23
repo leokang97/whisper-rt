@@ -31,6 +31,7 @@ class AsrClient(object):
         self._stub = pb2_grpc.AIServiceStub(self._channel)
         self._finished = threading.Event()
         self._consumer_future = None
+        self._msg_control_callback = None
 
     def send_message(self, method, data):
         try:
@@ -53,6 +54,8 @@ class AsrClient(object):
 
     def _on_msg_control(self, data: str) -> None:
         logger.info(f"MSG_CONTROL received: data={data}")
+        if self._msg_control_callback is not None:
+            self._msg_control_callback(data)
 
     def _subscribe_events(self):
         logger.info("subscribe to events")
@@ -109,8 +112,9 @@ class AsrClient(object):
 
         logger.info("client listener finished")
 
-    def start_listen(self) -> None:
+    def start_listen(self, callback=None) -> None:
         logger.info("start listen")
+        self._msg_control_callback = callback
         self._executor.submit(
             self._client_listener
         )

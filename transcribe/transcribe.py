@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import threading
 import time
@@ -113,6 +114,7 @@ def main():
 
     # internal variables
     non_speaking = [False]
+    soft_asr_blocking = [False]  # 물리적 마이크 버튼 ASR 차단이 아니라 소프트웨어적인 ASR 차단 요청
 
     with source:
         # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
@@ -124,22 +126,33 @@ def main():
         Threaded callback function to receive audio data when recordings finish.
         audio: An AudioData containing the recorded bytes.
         """
-        old_value = non_speaking[0]
-        non_speaking[0] = True if audio is None else False
-        if old_value != non_speaking[0]:
-            logger.debug(f"non-speaking status : ({old_value} > {non_speaking[0]})")
+        if not soft_asr_blocking[0]:
+            old_value = non_speaking[0]
+            non_speaking[0] = True if audio is None else False
+            if old_value != non_speaking[0]:
+                logger.debug(f"non-speaking status : ({old_value} > {non_speaking[0]})")
 
-        if audio is not None:
-            # Grab the raw bytes and push it into the thread safe queue.
-            data = audio.get_raw_data()
-            data_queue.put(data)
+            if audio is not None:
+                # Grab the raw bytes and push it into the thread safe queue.
+                data = audio.get_raw_data()
+                data_queue.put(data)
 
     # Create a background thread that will pass us raw audio bytes.
     # We could do this manually but SpeechRecognizer provides a nice helper.
     listen_in_background(recorder, source, record_callback, phrase_time_limit=record_timeout)
 
+    def event_msg_control_callback(data: str) -> None:
+        data_obj = json.loads(data)
+        logger.debug(f"event_msg_control, data={data_obj}")
+        event_name = data_obj['event']
+        if event_name == 'startRecognize':
+            soft_asr_blocking[0] = False
+        elif event_name == 'stopRecognize':
+            soft_asr_blocking[0] = True
+        logger.debug(f"soft_asr_blocking status : {soft_asr_blocking[0]}")
+
     # start gRPC client listen
-    asr_client.start_listen()
+    asr_client.start_listen(event_msg_control_callback)
 
     # Cue the user that we're ready to go.
     logger.info("Recorder is ready.\n")
