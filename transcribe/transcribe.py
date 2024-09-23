@@ -63,6 +63,7 @@ def main():
                                  "Run this with 'list' to view available Microphones.", type=str)
     args = parser.parse_args()
 
+    mic_source = None
     # The last time a recording was retrieved from the queue.
     phrase_time = None
     # Thread safe Queue for passing data from the threaded recording callback.
@@ -87,11 +88,11 @@ def main():
         else:
             for index, name in enumerate(sr.Microphone.list_microphone_names()):
                 if mic_name in name:
-                    source = sr.Microphone(sample_rate=SAMPLE_RATE, device_index=index)
+                    mic_source = sr.Microphone(sample_rate=SAMPLE_RATE, device_index=index)
                     logger.info(f"Selected Microphone name : \"{name}\"\n")
                     break
     else:
-        source = sr.Microphone(sample_rate=SAMPLE_RATE)
+        mic_source = sr.Microphone(sample_rate=SAMPLE_RATE)
 
     logger.info(f"cuda available: {torch.cuda.is_available()}, mps available: {torch.backends.mps.is_available()}")
 
@@ -116,10 +117,10 @@ def main():
     non_speaking = [False]
     soft_asr_blocking = [False]  # 물리적 마이크 버튼 ASR 차단이 아니라 소프트웨어적인 ASR 차단 요청
 
-    with source:
+    with mic_source:
         # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
         # 1초 동안 오디오 소스를 분석하기 때문에 1초 후부터 음성을 인식할 수 있다.
-        recorder.adjust_for_ambient_noise(source)
+        recorder.adjust_for_ambient_noise(mic_source)
 
     def record_callback(_, audio: sr.AudioData) -> None:
         """
@@ -139,7 +140,7 @@ def main():
 
     # Create a background thread that will pass us raw audio bytes.
     # We could do this manually but SpeechRecognizer provides a nice helper.
-    listen_in_background(recorder, source, record_callback, phrase_time_limit=record_timeout)
+    listen_in_background(recorder, mic_source, record_callback, phrase_time_limit=record_timeout)
 
     def event_msg_control_callback(data: str) -> None:
         data_obj = json.loads(data)
