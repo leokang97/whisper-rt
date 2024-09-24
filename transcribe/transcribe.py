@@ -90,12 +90,8 @@ def main():
             for index, name in enumerate(sr.Microphone.list_microphone_names()):
                 if mic_name in name:
                     mic_source = sr.Microphone(sample_rate=SAMPLE_RATE, device_index=index)
-                    logger.info(f"Selected Microphone name : [{index}] \"{name}\"\n")
+                    logger.info(f"Selected Microphone name : \"{name}\"\n")
                     break
-
-            if not check_microphone_working(mic_name):
-                logger.info("마이크가 동작하는지 마이크 전원을 확인하세요.")
-                return
     else:
         mic_source = sr.Microphone(sample_rate=SAMPLE_RATE)
 
@@ -126,6 +122,12 @@ def main():
         # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
         # 1초 동안 오디오 소스를 분석하기 때문에 1초 후부터 음성을 인식할 수 있다.
         recorder.adjust_for_ambient_noise(mic_source)
+    time.sleep(1)
+
+    if 'linux' in platform:
+        if not check_microphone_working(args.default_microphone):
+            logger.info("마이크가 동작하는지 마이크 전원을 확인하세요.")
+            return
 
     def record_callback(_, audio: sr.AudioData) -> None:
         """
@@ -162,8 +164,7 @@ def main():
     asr_client.start_listen(event_msg_control_callback)
 
     # Cue the user that we're ready to go.
-    logger.info("Recorder is ready.\n")
-    time.sleep(1)
+    logger.info("Recorder is ready.")
     logger.info("START\n")
 
     just_first_time = True
@@ -298,7 +299,7 @@ def check_microphone_working(mic_name: str) -> bool:
                 energy = -audioop.rms(buffer, 2)
                 energy_bytes = bytes([energy & 0xFF, (energy >> 8) & 0xFF])
                 debiased_energy = audioop.rms(audioop.add(buffer, energy_bytes * (len(buffer) // 2), 2), 2)
-                logger.info(f"Microphone name : [{device_index}] \"{device_name}\", debiased_energy={debiased_energy}")
+                logger.info(f"Microphone name : \"{device_name}\", debiased_energy={debiased_energy}")
 
                 if debiased_energy > 0:  # probably actually audio
                     is_working = True
