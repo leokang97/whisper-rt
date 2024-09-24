@@ -92,51 +92,12 @@ def main():
                     mic_source = sr.Microphone(sample_rate=SAMPLE_RATE, device_index=index)
                     logger.info(f"Selected Microphone name : [{index}] \"{name}\"\n")
                     break
+
+            if not check_microphone_working(mic_name):
+                logger.info("마이크가 동작하는지 마이크 전원을 확인하세요.")
+                return
     else:
         mic_source = sr.Microphone(sample_rate=SAMPLE_RATE)
-
-    # TEST
-    def check_microphone():
-        pyaudio_module = sr.Microphone.get_pyaudio()
-        audio = pyaudio_module.PyAudio()
-        working_microphone = False
-        try:
-            for device_index in range(audio.get_device_count()):
-                device_info = audio.get_device_info_by_index(device_index)
-                device_name = device_info.get("name")
-
-                if device_name == 'pulse':
-                    assert isinstance(device_info.get("defaultSampleRate"), (float, int)) and device_info["defaultSampleRate"] > 0, "Invalid device info returned from PyAudio: {}".format(device_info)
-                    try:
-                        # read audio
-                        pyaudio_stream = audio.open(
-                            input_device_index=device_index, channels=1, format=pyaudio_module.paInt16,
-                            rate=int(device_info["defaultSampleRate"]), input=True
-                        )
-                        try:
-                            buffer = pyaudio_stream.read(1024)
-                            if not pyaudio_stream.is_stopped(): pyaudio_stream.stop_stream()
-                        finally:
-                            pyaudio_stream.close()
-                    except Exception:
-                        continue
-
-                    # compute RMS of debiased audio
-                    energy = -audioop.rms(buffer, 2)
-                    energy_bytes = bytes([energy & 0xFF, (energy >> 8) & 0xFF])
-                    debiased_energy = audioop.rms(audioop.add(buffer, energy_bytes * (len(buffer) // 2), 2), 2)
-                    logger.info(f"debiased_energy: {debiased_energy}")
-
-                    if debiased_energy > 30:  # probably actually audio
-                        logger.info(f"result: {device_name}")
-                        working_microphone = True
-        finally:
-            audio.terminate()
-        return working_microphone
-
-    if not check_microphone():
-        logger.info("Check your microphone power.")
-        return
 
     logger.info(f"cuda available: {torch.cuda.is_available()}, mps available: {torch.backends.mps.is_available()}")
 
@@ -305,6 +266,45 @@ def main():
     asr_client.stop_listen()
 
     logger.info("\n\nEND")
+
+
+def check_microphone_working(mic_name: str) -> bool:
+    pyaudio_module = sr.Microphone.get_pyaudio()
+    audio = pyaudio_module.PyAudio()
+    is_working = False
+    try:
+        for device_index in range(audio.get_device_count()):
+            device_info = audio.get_device_info_by_index(device_index)
+            device_name = device_info.get("name")
+
+            if device_name == mic_name:
+                assert (isinstance(device_info.get("defaultSampleRate"), (float, int)) and device_info["defaultSampleRate"] > 0), "Invalid device info returned from PyAudio: {}".format(device_info)
+                try:
+                    # read audio
+                    pyaudio_stream = audio.open(
+                        input_device_index=device_index, channels=1, format=pyaudio_module.paInt16,
+                        rate=int(device_info["defaultSampleRate"]), input=True
+                    )
+                    try:
+                        buffer = pyaudio_stream.read(1024)
+                        if not pyaudio_stream.is_stopped():
+                            pyaudio_stream.stop_stream()
+                    finally:
+                        pyaudio_stream.close()
+                except Exception:
+                    continue
+
+                # compute RMS of debiased audio
+                energy = -audioop.rms(buffer, 2)
+                energy_bytes = bytes([energy & 0xFF, (energy >> 8) & 0xFF])
+                debiased_energy = audioop.rms(audioop.add(buffer, energy_bytes * (len(buffer) // 2), 2), 2)
+                logger.info(f"Microphone name : [{device_index}] \"{device_name}\", debiased_energy={debiased_energy}")
+
+                if debiased_energy > 0:  # probably actually audio
+                    is_working = True
+    finally:
+        audio.terminate()
+    return is_working
 
 
 def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
