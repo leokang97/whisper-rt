@@ -150,6 +150,7 @@ def main():
             soft_asr_blocking[0] = False
         elif event_name == 'stopRecognize':
             soft_asr_blocking[0] = True
+            non_speaking[0] = True
         logger.debug(f"soft_asr_blocking status : {soft_asr_blocking[0]}")
 
     # start gRPC client listen
