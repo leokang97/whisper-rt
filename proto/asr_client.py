@@ -31,7 +31,7 @@ class AsrClient(object):
         self._stub = pb2_grpc.AIServiceStub(self._channel)
         self._finished = threading.Event()
         self._consumer_future = None
-        self._msg_control_callback = None
+        self._grpc_event_callback = None
 
     def send_message(self, method, data):
         try:
@@ -43,19 +43,22 @@ class AsrClient(object):
     def _response_watcher(self, response_iterator: Iterable[pb2.EventMessage]) -> None:
         try:
             for response in response_iterator:
+                # from Simulator App (Android Tablet)
                 if response.method == 'MSG_CONTROL':
-                    self._on_msg_control(response.data)
+                    logger.info(f"MSG_CONTROL received")
+                    if self._grpc_event_callback is not None:
+                        self._grpc_event_callback.on_msg_control(response.data)
+                # from Camera App (Linux)
+                elif response.method == 'MSG_MOUTH_STATE_CHANGED':
+                    logger.info(f"MSG_MOUTH_STATE_CHANGED received")
+                    if self._grpc_event_callback is not None:
+                        self._grpc_event_callback.on_msg_mouth_state_changed(response.data)
                 else:
                     logger.warning(f"invalid method={response.method}")
         except Exception as e:
             logger.warning(f"gRPC Event response error={e}")
             self._finish()
             raise
-
-    def _on_msg_control(self, data: str) -> None:
-        logger.info(f"MSG_CONTROL received: data={data}")
-        if self._msg_control_callback is not None:
-            self._msg_control_callback(data)
 
     def _subscribe_events(self):
         logger.info("subscribe to events")
@@ -114,7 +117,7 @@ class AsrClient(object):
 
     def start_listen(self, callback=None) -> None:
         logger.info("start listen")
-        self._msg_control_callback = callback
+        self._grpc_event_callback = callback
         self._executor.submit(
             self._client_listener
         )

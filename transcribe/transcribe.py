@@ -149,19 +149,35 @@ def main():
     # We could do this manually but SpeechRecognizer provides a nice helper.
     listen_in_background(recorder, mic_source, record_callback, phrase_time_limit=record_timeout)
 
-    def event_msg_control_callback(data: str) -> None:
-        data_obj = json.loads(data)
-        logger.debug(f"event_msg_control, data={data_obj}")
-        event_name = data_obj['event']
-        if event_name == 'startRecognize':
-            soft_asr_blocking[0] = False
-        elif event_name == 'stopRecognize':
-            soft_asr_blocking[0] = True
-            non_speaking[0] = True
-        logger.debug(f"soft_asr_blocking status : {soft_asr_blocking[0]}")
+    class RpcEventCallback:
+        @staticmethod
+        def on_msg_control(data: str):
+            data_obj = json.loads(data)
+            logger.debug(f"gRPC event callback: on_msg_control, data={data_obj}")
+            event_name = data_obj['event']
+            old_value = soft_asr_blocking[0]
+            if event_name == 'startRecognize':
+                soft_asr_blocking[0] = False
+            elif event_name == 'stopRecognize':
+                soft_asr_blocking[0] = True
+                non_speaking[0] = True
+            send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
+
+        @staticmethod
+        def on_msg_mouth_state_changed(data: str):
+            data_obj = json.loads(data)
+            logger.debug(f"gRPC event callback: on_msg_mouth_state_changed, data={data_obj}")
+            state_value = data_obj['State']
+            old_value = soft_asr_blocking[0]
+            if state_value == 'Opened':
+                soft_asr_blocking[0] = False
+            elif state_value == 'Closed':
+                soft_asr_blocking[0] = True
+                non_speaking[0] = True
+            send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
 
     # start gRPC client listen
-    asr_client.start_listen(event_msg_control_callback)
+    asr_client.start_listen(RpcEventCallback())
 
     # Cue the user that we're ready to go.
     logger.info("Recorder is ready.")
@@ -385,6 +401,23 @@ def send_stt(client, timestamp_string, stt):
 
 def drop_dummy_stt(in_progress, stt):
     return True if not in_progress and stt in dummy_stt else False
+
+
+def send_asr_state_changed(client, old_state, new_state):
+    logger.debug(f"soft_asr_blocking status : ({old_state} > {new_state})")
+    asr_state_value = None
+    if old_state and not new_state:
+        # case: Soft ASR Blocking true -> false
+        asr_state_value = 'AsrProcessing'
+    elif not old_state and new_state:
+        # case: Soft ASR Blocking false -> true
+        asr_state_value = 'SoftAsrBlocking'
+    else:
+        # case: not changed
+        return
+
+    data = '{ "State":"%s" }' % asr_state_value
+    # TODO: send ASR state changed
 
 
 if __name__ == "__main__":

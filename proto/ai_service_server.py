@@ -19,12 +19,21 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-def create_event(mic_on: bool) -> pb2.EventMessage():
+def create_simulator_event(mic_on: bool) -> pb2.EventMessage():
     event = pb2.EventMessage()
     event.method = 'MSG_CONTROL'
     event_name = 'startRecognize' if mic_on else 'stopRecognize'
     event.data = '{ "event":"%s" }' % event_name
-    logger.info(f"Created a event={MessageToJson(event)}")
+    logger.info(f"Created a SIMULATOR event={MessageToJson(event)}")
+    return event
+
+
+def create_camera_event(mouth_opened: bool) -> pb2.EventMessage():
+    event = pb2.EventMessage()
+    event.method = 'MSG_MOUTH_STATE_CHANGED'
+    state_value = 'Opened' if mouth_opened else 'Closed'
+    event.data = '{ "State":"%s" }' % state_value
+    logger.info(f"Created a CAMEAR event={MessageToJson(event)}")
     return event
 
 
@@ -40,14 +49,26 @@ class AiServiceServer(pb2_grpc.AIServiceServicer):
 
     def Event(self, request, context) -> Iterable[pb2.EventMessage]:
         logger.info("Received a subscription request")
-        # Simulate mic on
-        time.sleep(3)
-        logger.info("Mic On")
-        yield create_event(True)
         # Simulate mic off
         time.sleep(3)
         logger.info("Mic Off")
-        yield create_event(False)
+        yield create_simulator_event(False)
+        # Simulate mic on
+        time.sleep(3)
+        logger.info("Mic On")
+        yield create_simulator_event(True)
+        # Simulate driver mouth closed
+        time.sleep(3)
+        logger.info("Driver Mouth Closed")
+        yield create_camera_event(False)
+        # Simulate driver mouth opened
+        time.sleep(3)
+        logger.info("Driver Mouth Opened")
+        yield create_camera_event(True)
+        # Simulate mic off
+        time.sleep(3)
+        logger.info("Mic Off")
+        yield create_simulator_event(False)
 
 
 def serve(address: str):
