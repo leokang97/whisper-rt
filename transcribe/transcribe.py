@@ -416,8 +416,11 @@ def send_asr_state_changed(client, old_state, new_state):
         # case: not changed
         return
 
+    # send ASR state changed
     data = '{ "State":"%s" }' % asr_state_value
-    # TODO: send ASR state changed
+    response = client.send_message('MSG_ASR_STATE_CHANGED', data)
+    if response:
+        logger.debug(f"ASR Client received: status={response.status},message=[{response.message}]")
 
 
 if __name__ == "__main__":
