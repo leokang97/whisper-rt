@@ -118,6 +118,7 @@ def main():
 
     # internal variables
     non_speaking = [False]
+    stop_recognize = [False]  # PAD(android tablet)로부터 start/stop recognize 요청
     soft_asr_blocking = [False]  # 물리적 마이크 버튼 ASR 차단이 아니라 소프트웨어적인 ASR 차단 요청
 
     with mic_source:
@@ -162,8 +163,10 @@ def main():
             event_name = data_obj['event']
             old_value = soft_asr_blocking[0]
             if event_name == 'startRecognize':
+                stop_recognize[0] = False
                 soft_asr_blocking[0] = False
             elif event_name == 'stopRecognize':
+                stop_recognize[0] = True
                 soft_asr_blocking[0] = True
                 non_speaking[0] = True
             send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
@@ -172,14 +175,17 @@ def main():
         def on_msg_mouth_state_changed(data: str):
             data_obj = json.loads(data)
             logger.debug(f"gRPC event callback: on_msg_mouth_state_changed, data={data_obj}")
-            state_value = data_obj['State']
-            old_value = soft_asr_blocking[0]
-            if state_value == 'Opened':
-                soft_asr_blocking[0] = False
-            elif state_value == 'Closed':
-                soft_asr_blocking[0] = True
-                non_speaking[0] = True
-            send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
+
+            # soft ASR blocking 우선 순위 : stop_recognize > mouth state "closed"
+            if not stop_recognize[0]:
+                state_value = data_obj['State']
+                old_value = soft_asr_blocking[0]
+                if state_value == 'Opened':
+                    soft_asr_blocking[0] = False
+                elif state_value == 'Closed':
+                    soft_asr_blocking[0] = True
+                    non_speaking[0] = True
+                send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
 
     # start gRPC client listen
     asr_client.start_listen(RpcEventCallback())
