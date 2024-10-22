@@ -58,6 +58,8 @@ def main():
     parser.add_argument("--phrase_timeout", default=3,
                         help="How much empty space between recordings before we "
                              "consider it a new line in the transcription.", type=float)
+    parser.add_argument("--mic_debiased", action='store_true',
+                        help="Whether or not to check debiased energy to check microphone working.")
     if 'linux' in platform:
         parser.add_argument("--default_microphone", default='pulse',
                             help="Default microphone name for SpeechRecognition. "
@@ -124,7 +126,10 @@ def main():
         recorder.adjust_for_ambient_noise(mic_source)
     time.sleep(1)
 
-    if 'linux' in platform:
+    # notes: 조명 모듈에서 오디오 입력 사용하는 부분과 충돌이 있어서 기본값은 "사용 안함"
+    # mic_debiased flag 기본값은 False
+    # 필요할 시에 실행 arguments에 "--mic_debiased"을 추가하여 사용할 수 있음
+    if 'linux' in platform and args.mic_debiased:
         if not check_microphone_working(args.default_microphone):
             logger.info("마이크가 동작하는지 마이크 전원을 확인하세요.")
             return
