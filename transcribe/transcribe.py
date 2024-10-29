@@ -119,6 +119,7 @@ def main():
     # internal variables
     non_speaking = [False]
     stop_recognize = [False]  # PAD(android tablet)로부터 start/stop recognize 요청
+    mouth_opened = [False]  # 얼굴인식 카메라로부터 mouth open state, true=opened, false=closed, default=closed
     soft_asr_blocking = [False]  # 물리적 마이크 버튼 ASR 차단이 아니라 소프트웨어적인 ASR 차단 요청
 
     with mic_source:
@@ -164,25 +165,35 @@ def main():
             old_value = soft_asr_blocking[0]
             if event_name == 'startRecognize':
                 stop_recognize[0] = False
-                soft_asr_blocking[0] = False
+                # mouth state 고려함
+                soft_asr_blocking[0] = False if mouth_opened[0] else True
             elif event_name == 'stopRecognize':
                 stop_recognize[0] = True
                 soft_asr_blocking[0] = True
                 non_speaking[0] = True
             send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
 
+            if soft_asr_blocking[0] and not data_queue.empty():
+                # clear audio data from queue
+                b''.join(data_queue.queue)
+                data_queue.queue.clear()
+
         @staticmethod
         def on_msg_mouth_state_changed(data: str):
             data_obj = json.loads(data)
             logger.debug(f"gRPC event callback: on_msg_mouth_state_changed, data={data_obj}")
+            state_value = data_obj['State']
+            if state_value == 'Opened':
+                mouth_opened[0] = True
+            elif state_value == 'Closed':
+                mouth_opened[0] = False
 
             # soft ASR blocking 우선 순위 : stop_recognize > mouth state "closed"
             if not stop_recognize[0]:
-                state_value = data_obj['State']
                 old_value = soft_asr_blocking[0]
-                if state_value == 'Opened':
+                if mouth_opened[0]:
                     soft_asr_blocking[0] = False
-                elif state_value == 'Closed':
+                else:
                     soft_asr_blocking[0] = True
                     non_speaking[0] = True
                 send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
