@@ -124,6 +124,7 @@ def main():
 
     assert isinstance(mic_source, sr.AudioSource), "Source must be an audio source"
 
+    # blocked : crash issue ??
     with mic_source:
         # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
         # 1초 동안 오디오 소스를 분석하기 때문에 1초 후부터 음성을 인식할 수 있다.
@@ -377,8 +378,6 @@ def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
     def threaded_listen():
         with source as s:
             while running[0]:
-                # TEST
-                logger.debug("[TEST] recognizer.listen")
                 try:  # listen for 1 second, then check again if the stop function has been called
                     audio = recognizer.listen(s, 1, phrase_time_limit)
                 except WaitTimeoutError:  # listening timed out, just try again
@@ -386,8 +385,6 @@ def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
                     if running[0]:
                         callback(recognizer, None)
                     # pass
-                except Exception as e:
-                    logger.debug(f"[TEST] recognizer.listen Exception={e}")
                 else:
                     if running[0]:
                         callback(recognizer, audio)
