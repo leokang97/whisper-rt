@@ -377,6 +377,8 @@ def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
     def threaded_listen():
         with source as s:
             while running[0]:
+                # TEST
+                logger.debug("[TEST] recognizer.listen")
                 try:  # listen for 1 second, then check again if the stop function has been called
                     audio = recognizer.listen(s, 1, phrase_time_limit)
                 except WaitTimeoutError:  # listening timed out, just try again
@@ -384,6 +386,8 @@ def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
                     if running[0]:
                         callback(recognizer, None)
                     # pass
+                except Exception as e:
+                    logger.debug(f"[TEST] recognizer.listen Exception={e}")
                 else:
                     if running[0]:
                         callback(recognizer, audio)
