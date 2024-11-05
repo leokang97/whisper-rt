@@ -121,6 +121,7 @@ def main():
     stop_recognize = [False]  # PAD(android tablet)로부터 start/stop recognize 요청
     mouth_opened = [False]  # 얼굴인식 카메라로부터 mouth open state, true=opened, false=closed, default=closed
     soft_asr_blocking = [False]  # 물리적 마이크 버튼 ASR 차단이 아니라 소프트웨어적인 ASR 차단 요청
+    force_start_recognize = [False]  # start recognize 요청 시 mouth state를 고려하지 않고 강제로 ASR 한다.
 
     assert isinstance(mic_source, sr.AudioSource), "Source must be an audio source"
 
@@ -167,9 +168,17 @@ def main():
             old_value = soft_asr_blocking[0]
             if event_name == 'startRecognize':
                 stop_recognize[0] = False
+
                 # 'force' optional field
                 force = data_obj.get('force')
-                if force and force == 'true':
+                if force:
+                    if force == 'true':
+                        force_start_recognize[0] = True
+                    elif force == 'false':
+                        force_start_recognize[0] = False
+
+                logger.debug(f"gRPC event callback: on_msg_control, force_start_recognize={force_start_recognize[0]}")
+                if force_start_recognize[0]:
                     # force start ASR
                     soft_asr_blocking[0] = False
                 else:
