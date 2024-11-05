@@ -124,7 +124,6 @@ def main():
 
     assert isinstance(mic_source, sr.AudioSource), "Source must be an audio source"
 
-    # blocked : crash issue ??
     with mic_source:
         # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
         # 1초 동안 오디오 소스를 분석하기 때문에 1초 후부터 음성을 인식할 수 있다.
@@ -168,8 +167,14 @@ def main():
             old_value = soft_asr_blocking[0]
             if event_name == 'startRecognize':
                 stop_recognize[0] = False
-                # mouth state 고려함
-                soft_asr_blocking[0] = False if mouth_opened[0] else True
+                # 'force' optional field
+                force = data_obj.get('force')
+                if force and force == 'true':
+                    # force start ASR
+                    soft_asr_blocking[0] = False
+                else:
+                    # mouth state 고려함
+                    soft_asr_blocking[0] = False if mouth_opened[0] else True
             elif event_name == 'stopRecognize':
                 stop_recognize[0] = True
                 soft_asr_blocking[0] = True
