@@ -198,15 +198,15 @@ def main():
         @staticmethod
         def on_msg_mouth_state_changed(data: str):
             data_obj = json.loads(data)
-            logger.debug(f"gRPC event callback: on_msg_mouth_state_changed, data={data_obj}")
+            logger.debug(f"gRPC event callback: on_msg_mouth_state_changed, data={data_obj},stop_recognize={stop_recognize[0]},force_start_recognize={force_start_recognize[0]}")
             state_value = data_obj['State']
             if state_value == 'Opened':
                 mouth_opened[0] = True
             elif state_value == 'Closed':
                 mouth_opened[0] = False
 
-            # soft ASR blocking 우선 순위 : stop_recognize > mouth state "closed"
-            if not stop_recognize[0]:
+            # soft ASR blocking 우선 순위 : stop_recognize > force start recognize > mouth state "closed"
+            if not stop_recognize[0] and not force_start_recognize[0]:
                 old_value = soft_asr_blocking[0]
                 if mouth_opened[0]:
                     soft_asr_blocking[0] = False
