@@ -2,6 +2,7 @@ import argparse
 import audioop
 import json
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timedelta
@@ -23,6 +24,7 @@ from utils import file_util
 
 SAMPLE_RATE = 16_000
 dummy_stt = ['감사합니다.', '시청해주셔서 감사합니다.']
+wuw_pattern = re.compile(r'(하이|헤이|해이)+\s?(젠|겐|렌)+')
 
 logger = logging.getLogger('transcribe')
 logger.setLevel(logging.DEBUG)
@@ -280,6 +282,8 @@ def main():
                 if drop_dummy_stt(is_speech_in_progress, text):
                     logger.debug(f"dropped stt={text}")
                 else:
+                    text = filter_stt(text)
+
                     # If we detected a pause between recordings, add a new item to our transcription.
                     # Otherwise, edit the existing one.
                     if phrase_complete and speech_in_progress:
@@ -440,6 +444,15 @@ def send_stt(client, timestamp_string, stt):
 
 def drop_dummy_stt(in_progress, stt):
     return True if not in_progress and stt in dummy_stt else False
+
+
+def filter_stt(stt):
+    m = wuw_pattern.match(stt)
+    if m:
+        logger.debug(f"WUW match found={m.group()}")
+        return stt.replace(m.group(), '').lstrip()
+    else:
+        return stt
 
 
 def send_asr_state_changed(client, old_state, new_state):
