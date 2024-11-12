@@ -203,7 +203,7 @@ def main():
                 non_speaking[0] = True
                 send_every_asr_state_changed(asr_client, soft_asr_blocking[0])
 
-            if old_value != soft_asr_blocking[0] and not data_queue.empty():
+            if soft_asr_blocking[0] and not data_queue.empty():
                 logger.debug("clear audio data from queue")
                 # clear audio data from queue
                 b''.join(data_queue.queue)
