@@ -146,6 +146,9 @@ def main():
         Threaded callback function to receive audio data when recordings finish.
         audio: An AudioData containing the recorded bytes.
         """
+        if audio is not None:
+            logger.debug(f"record_callback, audio=True,soft_asr_blocking={soft_asr_blocking[0]}")
+
         if not soft_asr_blocking[0]:
             old_value = non_speaking[0]
             non_speaking[0] = True if audio is None else False
@@ -199,7 +202,8 @@ def main():
                 non_speaking[0] = True
                 send_every_asr_state_changed(asr_client, soft_asr_blocking[0])
 
-            if soft_asr_blocking[0] and not data_queue.empty():
+            if old_value != soft_asr_blocking[0] and not data_queue.empty():
+                logger.debug("clear audio data from queue")
                 # clear audio data from queue
                 b''.join(data_queue.queue)
                 data_queue.queue.clear()
