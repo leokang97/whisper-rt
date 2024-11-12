@@ -124,6 +124,7 @@ def main():
     mouth_opened = [False]  # 얼굴인식 카메라로부터 mouth open state, true=opened, false=closed, default=closed
     soft_asr_blocking = [False]  # 물리적 마이크 버튼 ASR 차단이 아니라 소프트웨어적인 ASR 차단 요청
     force_start_recognize = [False]  # start recognize 요청 시 mouth state를 고려하지 않고 강제로 ASR 한다.
+    speech_in_progress = ['']
 
     assert isinstance(mic_source, sr.AudioSource), "Source must be an audio source"
 
@@ -207,6 +208,7 @@ def main():
                 # clear audio data from queue
                 b''.join(data_queue.queue)
                 data_queue.queue.clear()
+                speech_in_progress[0] = ''
 
         @staticmethod
         def on_msg_mouth_state_changed(data: str):
@@ -236,7 +238,6 @@ def main():
     logger.info("START\n")
 
     just_first_time = True
-    speech_in_progress = ''
     speech_timestamp = None
 
     while True:
@@ -254,11 +255,11 @@ def main():
                 start_time = time.perf_counter()
 
                 new_speech_started = False
-                if just_first_time or (phrase_complete and speech_in_progress):
+                if just_first_time or (phrase_complete and speech_in_progress[0]):
                     just_first_time = False
                     new_speech_started = True
                 else:
-                    if not speech_in_progress:
+                    if not speech_in_progress[0]:
                         # case: record finished로 이전 speech 완료된 상태
                         new_speech_started = True
 
@@ -286,7 +287,7 @@ def main():
                 end_time = time.perf_counter()
                 timestamp_string = timestamp_format(phrase_time)
                 elapsed_time_string = elapsed_time_format(start_time, end_time)
-                is_speech_in_progress = bool(speech_in_progress)
+                is_speech_in_progress = bool(speech_in_progress[0])
                 logger.debug(f"[{timestamp_string}, {elapsed_time_string}ms, phrase_complete: {phrase_complete}, "
                              f"is_speech_in_progress: {is_speech_in_progress}] {text}")
 
@@ -297,24 +298,24 @@ def main():
 
                     # If we detected a pause between recordings, add a new item to our transcription.
                     # Otherwise, edit the existing one.
-                    if phrase_complete and speech_in_progress:
+                    if phrase_complete and speech_in_progress[0]:
                         # 진행 중이던 speech 완료 처리
                         speech_timestamp_string = timestamp_format(speech_timestamp)
-                        logger.debug(f"[{speech_timestamp_string}, phrase_complete] {speech_in_progress}")
-                        send_stt(asr_client, speech_timestamp_string, speech_in_progress)
-                        logger.info(f"[{speech_timestamp_string}] {speech_in_progress}")
+                        logger.debug(f"[{speech_timestamp_string}, phrase_complete] {speech_in_progress[0]}")
+                        send_stt(asr_client, speech_timestamp_string, speech_in_progress[0])
+                        logger.info(f"[{speech_timestamp_string}] {speech_in_progress[0]}")
 
                         # 새로운 speech 시작
                         speech_timestamp = phrase_time
-                        speech_in_progress = text
+                        speech_in_progress[0] = text
                     else:
-                        if not speech_in_progress:
+                        if not speech_in_progress[0]:
                             # record finished로 이전 speech 완료 후 새로운 speech 시작
                             speech_timestamp = phrase_time
-                            speech_in_progress = text
+                            speech_in_progress[0] = text
                         else:
-                            speech_in_progress += ' ' + text
-                    logger.debug(f"speech_in_progress={speech_in_progress}")
+                            speech_in_progress[0] += ' ' + text
+                    logger.debug(f"speech_in_progress={speech_in_progress[0]}")
             else:
                 # Infinite loops are bad for processors, must sleep.
                 # non-speaking 간주 기준: 1초 동안 listening 하여 0.8초(pause_threshold) 동안 말하지 않거나
@@ -322,13 +323,13 @@ def main():
                 time.sleep(1)
 
                 # 1초 후에 non-speaking 상태를 체크한다.
-                if non_speaking[0] and speech_in_progress:
+                if non_speaking[0] and speech_in_progress[0]:
                     logger.debug("No speech detected. The phrase is considered complete.")
                     speech_timestamp_string = timestamp_format(speech_timestamp)
-                    logger.debug(f"[{speech_timestamp_string}, record_finished] {speech_in_progress}")
-                    send_stt(asr_client, speech_timestamp_string, speech_in_progress)
-                    logger.info(f"[{speech_timestamp_string}] {speech_in_progress}")
-                    speech_in_progress = ''
+                    logger.debug(f"[{speech_timestamp_string}, record_finished] {speech_in_progress[0]}")
+                    send_stt(asr_client, speech_timestamp_string, speech_in_progress[0])
+                    logger.info(f"[{speech_timestamp_string}] {speech_in_progress[0]}")
+                    speech_in_progress[0] = ''
 
         except KeyboardInterrupt:
             break
