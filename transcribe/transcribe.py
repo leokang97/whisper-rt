@@ -172,15 +172,21 @@ def main():
                 stop_recognize[0] = False
 
                 # 'force' optional field
-                force = data_obj.get('force')
-                if force:
-                    if force == 'true':
+                force_field = data_obj.get('force')
+                if force_field:
+                    if force_field == 'true':
                         force_start_recognize[0] = True
-                    elif force == 'false':
+                    elif force_field == 'false':
                         force_start_recognize[0] = False
 
-                logger.debug(f"gRPC event callback: on_msg_control, force_start_recognize={force_start_recognize[0]}")
-                if force_start_recognize[0]:
+                # 'once' optional field
+                once_start_recognize = False
+                once_field = data_obj.get('once')
+                if once_field and once_field == 'true':
+                    once_start_recognize = True
+
+                logger.debug(f"gRPC event callback: on_msg_control, force={force_start_recognize[0]},once={once_start_recognize}")
+                if force_start_recognize[0] or once_start_recognize:
                     # force start ASR
                     soft_asr_blocking[0] = False
                 else:
