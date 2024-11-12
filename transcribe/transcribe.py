@@ -401,10 +401,13 @@ def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
     running = [True]
 
     def threaded_listen():
+        logger.debug("threaded_listen, enter")
         with source as s:
+            logger.debug(f"threaded_listen, running={running[0]}")
             while running[0]:
                 try:  # listen for 1 second, then check again if the stop function has been called
                     audio = recognizer.listen(s, 1, phrase_time_limit)
+                    logger.debug(f"threaded_listen, audio={True if audio is not None else False}")
                 except WaitTimeoutError:  # listening timed out, just try again
                     # modified: non-speaking 일 경우, audio data를 None으로 설정한다.
                     if running[0]:
