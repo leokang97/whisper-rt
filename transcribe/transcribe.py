@@ -18,6 +18,7 @@ from speech_recognition import WaitTimeoutError
 import constants
 from proto.asr_client import AsrClient
 from utils import file_util
+from utils.timer_util import MyTimer
 
 # references
 # https://github.com/davabase/whisper_real_time
@@ -80,6 +81,7 @@ def main():
     recorder.dynamic_energy_threshold = False
     # gRPC ASR client instance
     asr_client = AsrClient()
+    once_asr_timer = MyTimer()
 
     # Important for linux users.
     # Prevents permanent application hang and crash by using the wrong Microphone
@@ -124,6 +126,7 @@ def main():
     mouth_opened = [False]  # 얼굴인식 카메라로부터 mouth open state, true=opened, false=closed, default=closed
     soft_asr_blocking = [False]  # 물리적 마이크 버튼 ASR 차단이 아니라 소프트웨어적인 ASR 차단 요청
     force_start_recognize = [False]  # start recognize 요청 시 mouth state를 고려하지 않고 강제로 ASR 한다.
+    once_start_recognize = [False]  # start recognize 요청 시 once [n] 초동안 mouth state를 고려하지 않고 ASR 한다.
     speech_in_progress = ['']
 
     assert isinstance(mic_source, sr.AudioSource), "Source must be an audio source"
@@ -165,6 +168,10 @@ def main():
     # We could do this manually but SpeechRecognizer provides a nice helper.
     listen_in_background(recorder, mic_source, record_callback, phrase_time_limit=record_timeout)
 
+    def once_asr_timer_finish_callback() -> None:
+        once_start_recognize[0] = False
+        logger.debug("once asr timer finish callback: once=False")
+
     class RpcEventCallback:
         @staticmethod
         def on_msg_control(data: str):
@@ -184,14 +191,16 @@ def main():
                         force_start_recognize[0] = False
 
                 # 'once' optional field
-                once_start_recognize = False
                 once_field = data_obj.get('once')
-                if once_field and once_field == 'true':
-                    once_start_recognize = True
 
-                logger.debug(f"gRPC event callback: on_msg_control, force={force_start_recognize[0]},once={once_start_recognize}")
-                if force_start_recognize[0] or once_start_recognize:
+                logger.debug(f"gRPC event callback: on_msg_control, force={force_start_recognize[0]},once={once_field}sec.")
+                if force_start_recognize[0]:
                     # force start ASR
+                    soft_asr_blocking[0] = False
+                elif once_field:
+                    once_start_recognize[0] = True
+                    once_asr_timer.start_timer(once_field, once_asr_timer_finish_callback)
+                    # once start ASR
                     soft_asr_blocking[0] = False
                 else:
                     # mouth state 고려함
@@ -213,15 +222,15 @@ def main():
         @staticmethod
         def on_msg_mouth_state_changed(data: str):
             data_obj = json.loads(data)
-            logger.debug(f"gRPC event callback: on_msg_mouth_state_changed, data={data_obj},stop_recognize={stop_recognize[0]},force_start_recognize={force_start_recognize[0]}")
+            logger.debug(f"gRPC event callback: on_msg_mouth_state_changed, data={data_obj},stop={stop_recognize[0]},force={force_start_recognize[0]},once={once_start_recognize[0]}")
             state_value = data_obj['State']
             if state_value == 'Opened':
                 mouth_opened[0] = True
             elif state_value == 'Closed':
                 mouth_opened[0] = False
 
-            # soft ASR blocking 우선 순위 : stop_recognize > force start recognize > mouth state "closed"
-            if not stop_recognize[0] and not force_start_recognize[0]:
+            # soft ASR blocking 우선 순위 : stop_recognize > force start recognize > once start recognize > mouth state "closed"
+            if not stop_recognize[0] and not force_start_recognize[0] and not once_start_recognize[0]:
                 old_value = soft_asr_blocking[0]
                 if mouth_opened[0]:
                     soft_asr_blocking[0] = False

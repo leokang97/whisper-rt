@@ -28,6 +28,14 @@ def create_simulator_event(mic_on: bool) -> pb2.EventMessage():
     return event
 
 
+def create_webapp_event(once_seconds: int) -> pb2.EventMessage():
+    event = pb2.EventMessage()
+    event.method = 'MSG_CONTROL'
+    event.data = '{ "event":"startRecognize", "once":%d }' % once_seconds
+    logger.info(f"Created a SIMULATOR event={MessageToJson(event)}")
+    return event
+
+
 def create_camera_event(mouth_opened: bool) -> pb2.EventMessage():
     event = pb2.EventMessage()
     event.method = 'MSG_MOUTH_STATE_CHANGED'
@@ -49,6 +57,7 @@ class AiServiceServer(pb2_grpc.AIServiceServicer):
 
     def Event(self, request, context) -> Iterable[pb2.EventMessage]:
         logger.info("Received a subscription request")
+        # testcase: normal
         # Simulate mic off
         time.sleep(3)
         logger.info("Mic Off")
@@ -69,6 +78,26 @@ class AiServiceServer(pb2_grpc.AIServiceServicer):
         time.sleep(3)
         logger.info("Mic Off")
         yield create_simulator_event(False)
+
+        # testcase: start recognize > once [n] seconds
+        # time.sleep(3)
+        # logger.info("start recognize > once 10 seconds")
+        # yield create_webapp_event(10)
+        # time.sleep(3)
+        # logger.info("start recognize > once 5 seconds")
+        # yield create_webapp_event(5)
+        # time.sleep(1)
+        # logger.info("Driver Mouth Closed")
+        # yield create_camera_event(False)
+        # time.sleep(1)
+        # logger.info("Driver Mouth Opened")
+        # yield create_camera_event(True)
+        # time.sleep(1)
+        # logger.info("Driver Mouth Closed")
+        # yield create_camera_event(False)
+        # time.sleep(3)
+        # logger.info("Driver Mouth Closed")
+        # yield create_camera_event(False)
 
 
 def serve(address: str):
