@@ -192,11 +192,12 @@ def main():
                 else:
                     # mouth state 고려함
                     soft_asr_blocking[0] = False if mouth_opened[0] else True
+                send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
             elif event_name == 'stopRecognize':
                 stop_recognize[0] = True
                 soft_asr_blocking[0] = True
                 non_speaking[0] = True
-            send_asr_state_changed(asr_client, old_value, soft_asr_blocking[0])
+                send_every_asr_state_changed(asr_client, soft_asr_blocking[0])
 
             if soft_asr_blocking[0] and not data_queue.empty():
                 # clear audio data from queue
@@ -462,8 +463,7 @@ def filter_stt(stt):
 
 
 def send_asr_state_changed(client, old_state, new_state):
-    logger.debug(f"soft_asr_blocking status : ({old_state} > {new_state})")
-    asr_state_value = None
+    logger.debug(f"soft_asr_blocking status : ({old_state} -> {new_state})")
     if old_state and not new_state:
         # case: Soft ASR Blocking true -> false
         asr_state_value = 'AsrProcessing'
@@ -473,6 +473,23 @@ def send_asr_state_changed(client, old_state, new_state):
     else:
         # case: not changed
         return
+
+    # send ASR state changed
+    data = '{ "State":"%s" }' % asr_state_value
+    response = client.send_message('MSG_ASR_STATE_CHANGED', data)
+    if response:
+        logger.debug(f"ASR Client received: status={response.status},message=[{response.message}]")
+
+
+def send_every_asr_state_changed(client, new_state):
+    logger.debug(f"soft_asr_blocking status : {new_state}")
+    # notes: soft_asr_blocking status 변경 여부와 상관없이 new state 값을 매번 전송한다.
+    if not new_state:
+        # case: Soft ASR Blocking: false
+        asr_state_value = 'AsrProcessing'
+    else:
+        # case: Soft ASR Blocking: true
+        asr_state_value = 'SoftAsrBlocking'
 
     # send ASR state changed
     data = '{ "State":"%s" }' % asr_state_value
