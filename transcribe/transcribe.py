@@ -217,7 +217,8 @@ def main():
                 # clear audio data from queue
                 b''.join(data_queue.queue)
                 data_queue.queue.clear()
-                speech_in_progress[0] = ''
+                # notes: start recognize 시에 앞 부분 speech가 잘리는 경우가 있어서 비활성. (주석처리)
+                # speech_in_progress[0] = ''
 
         @staticmethod
         def on_msg_mouth_state_changed(data: str):
