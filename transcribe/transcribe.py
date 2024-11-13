@@ -25,7 +25,7 @@ from utils.timer_util import MyTimer
 
 SAMPLE_RATE = 16_000
 dummy_stt = ['감사합니다.', '시청해주셔서 감사합니다.']
-wuw_pattern = re.compile(r'(하이|헤이|해이)+\s?(젠|겐|렌)+')
+wuw_pattern = re.compile(r'(마|막)그(마|막)')
 
 logger = logging.getLogger('transcribe')
 logger.setLevel(logging.DEBUG)
