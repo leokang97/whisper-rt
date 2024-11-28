@@ -24,8 +24,10 @@ from utils.timer_util import MyTimer
 # https://github.com/davabase/whisper_real_time
 
 SAMPLE_RATE = 16_000
-dummy_stt = ['감사합니다.', '시청해주셔서 감사합니다.', 'MBC 뉴스 김성현입니다.', '다음 영상에서 만나요.', '다음 영상에서 만나요. 감사합니다.']
-wuw_pattern = re.compile(r'(OK|오케이|오키|옥희)+[,|.]?\s?(GEN|젠|겐|렌|잰|쟨|잼|전|쨍|쨘|제인|제안)+[.]?', re.I)
+dummy_stt = ['감사합니다.', '시청해주셔서 감사합니다.', 'MBC 뉴스 김성현입니다.',
+             '다음 영상에서 만나요.', '다음 영상에서 만나요. 감사합니다.',
+             '지금까지 뉴스 스토리였습니다.', '지금까지 뉴스 스토리였습니다. 날씨 알려줘']
+wuw_pattern = re.compile(r'(OK|오케이|오키|옥희|옥회의)+[,|.]?\s?(GEN|젠|겐|렌|잰|쟨|잼|쨈|전|쨍|쨘|제인|제안|이제)+[.]?', re.I)
 
 logger = logging.getLogger('transcribe')
 logger.setLevel(logging.DEBUG)
