@@ -27,7 +27,7 @@ SAMPLE_RATE = 16_000
 dummy_stt = ['감사합니다.', '시청해주셔서 감사합니다.', 'MBC 뉴스 김성현입니다.',
              '다음 영상에서 만나요.', '다음 영상에서 만나요. 감사합니다.',
              '지금까지 뉴스 스토리였습니다.', '지금까지 뉴스 스토리였습니다. 날씨 알려줘']
-wuw_pattern = re.compile(r'(OK|오케이|오키|옥희|옥회의)+[,|.]?\s?(GEN|젠|겐|렌|잰|쟨|잼|쨈|전|쨍|쨘|제인|제안|이제)+[.]?', re.I)
+wuw_pattern = re.compile(r'(OK|오케이|옥케이|오키|옥희|옥회의|케이|헤이)+[,|.]?\s?(GEN|젠|겐|렌|잰|쟨|잼|쨈|전|잔|쨍|쨘|제인|제안|이제|이젠)+[.|?]?', re.I)
 
 logger = logging.getLogger('transcribe')
 logger.setLevel(logging.DEBUG)
@@ -173,6 +173,11 @@ def main():
     def once_asr_timer_finish_callback() -> None:
         once_start_recognize[0] = False
         logger.debug("once asr timer finish callback: once=False")
+        # timed out 시점에 mouth state "closed" 일 경우, soft ASR blocking
+        if not mouth_opened[0]:
+            soft_asr_blocking[0] = True
+            non_speaking[0] = True
+            send_every_asr_state_changed(asr_client, soft_asr_blocking[0])
 
     class RpcEventCallback:
         @staticmethod
