@@ -24,9 +24,7 @@ from utils.timer_util import MyTimer
 # https://github.com/davabase/whisper_real_time
 
 SAMPLE_RATE = 16_000
-dummy_stt = ['감사합니다.', '시청해주셔서 감사합니다.', 'MBC 뉴스 김성현입니다.',
-             '다음 영상에서 만나요.', '다음 영상에서 만나요. 감사합니다.',
-             '지금까지 뉴스 스토리였습니다.', '지금까지 뉴스 스토리였습니다. 날씨 알려줘']
+dummy_stt_pattern = re.compile(r'(시청해주셔서|서비스)*\s?감사합니다[.]|.*다음 영상에서 만나요|MBC 뉴스 김성현입니다|지금까지 뉴스 스토리였습니다|오늘의 영상|.*구독과 좋아요 부탁드립니다')
 wuw_pattern = re.compile(r'(OK|오케이|옥케이|오키|옥희|옥회의|케이|헤이)+[,|.]?\s?(GEN|젠|겐|렌|잰|쟨|잼|쨈|전|잔|쨍|쨘|제인|제안|이제|이젠)+[.|?]?', re.I)
 
 logger = logging.getLogger('transcribe')
@@ -78,7 +76,10 @@ def main():
     data_queue = Queue()
     # We use SpeechRecognizer to record our audio because it has a nice feature where it can detect when speech ends.
     recorder = sr.Recognizer()
-    recorder.energy_threshold = args.energy_threshold
+    # notes: recorder > adjust_for_ambient_noise() 기능을 사용하지 않으므로 직접 설정한다.
+    # minimum: 300 이상, default: 1000
+    # recorder.energy_threshold = args.energy_threshold
+    recorder.energy_threshold = 1500
     # dynamic energy compensation이 SpeechRecognizer가 녹음을 멈추지 않는 지점까지 energy threshold 값을 극적으로 낮춘다.
     recorder.dynamic_energy_threshold = False
     # gRPC ASR client instance
@@ -130,14 +131,6 @@ def main():
     force_start_recognize = [False]  # start recognize 요청 시 mouth state를 고려하지 않고 강제로 ASR 한다.
     once_start_recognize = [False]  # start recognize 요청 시 once [n] 초동안 mouth state를 고려하지 않고 ASR 한다.
     speech_in_progress = ['']
-
-    assert isinstance(mic_source, sr.AudioSource), "Source must be an audio source"
-
-    with mic_source:
-        # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
-        # 1초 동안 오디오 소스를 분석하기 때문에 1초 후부터 음성을 인식할 수 있다.
-        recorder.adjust_for_ambient_noise(mic_source)
-    time.sleep(1)
 
     # notes: 조명 모듈에서 오디오 입력 사용하는 부분과 충돌이 있어서 기본값은 "사용 안함"
     # mic_debiased flag 기본값은 False
@@ -309,7 +302,7 @@ def main():
                              f"is_speech_in_progress: {is_speech_in_progress}] {text}")
 
                 if drop_dummy_stt(is_speech_in_progress, text):
-                    logger.debug(f"dropped stt={text}")
+                    logger.debug(f"dropped DUMMY stt={text}")
                 else:
                     text = filter_stt(text)
 
@@ -426,6 +419,12 @@ def listen_in_background(recognizer, source, callback, phrase_time_limit=None):
         logger.debug("threaded_listen, enter")
         with source as s:
             logger.debug(f"threaded_listen, running={running[0]}")
+            # 주변 소음에 대한 인식기 감도를 조정하고 마이크에서 오디오를 녹음합니다.
+            # 1초 동안 오디오 소스를 분석하기 때문에 1초 후부터 음성을 인식할 수 있다.
+            # notes: 사용 안함. (PC 부팅 후에 오동작함. energy threshold가 약 40000 으로 설정되어서 녹음이 안됨)
+            # recognizer.adjust_for_ambient_noise(s)
+            # logger.debug(f"threaded_listen, adjust_for_ambient_noise : energy_threshold={recognizer.energy_threshold}")
+
             while running[0]:
                 try:  # listen for 1 second, then check again if the stop function has been called
                     audio = recognizer.listen(s, 1, phrase_time_limit)
@@ -475,7 +474,11 @@ def send_stt(client, timestamp_string, stt):
 
 
 def drop_dummy_stt(in_progress, stt):
-    return True if not in_progress and stt in dummy_stt else False
+    if in_progress:
+        return False
+    else:
+        m = dummy_stt_pattern.match(stt)
+        return True if m else False
 
 
 def filter_stt(stt):
